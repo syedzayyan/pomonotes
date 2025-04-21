@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session History - Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <!-- Add SimpleMDE CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- Add SimpleMDE JS -->
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
+    <link rel="manifest" href="/static/manifest.json">
+    <!-- Add auth.js script -->
+    <script src="/static/auth.js"></script>
+    
+    <!-- Add styles for SimpleMDE in dark mode -->
+    <style>
+        /* SimpleMDE Dark Theme Styles */
+        .CodeMirror {
+            background-color: var(--card-background-color);
+            color: var(--color);
+            border: 1px solid var(--form-element-border-color);
+            border-radius: var(--border-radius);
+        }
+        
+        .editor-toolbar {
+            background-color: var(--card-sectionning-background-color);
+            border: 1px solid var(--form-element-border-color);
+            border-bottom: none;
+            border-top-left-radius: var(--border-radius);
+            border-top-right-radius: var(--border-radius);
+            opacity: 1;
+        }
+        
+        .editor-toolbar button {
+            color: var(--color);
+        }
+        
+        .editor-toolbar button:hover {
+            background-color: var(--primary-hover);
+            color: var(--primary-inverse);
+        }
+        
+        .editor-toolbar.disabled-for-preview button:not(.no-disable) {
+            opacity: 0.5;
+        }
+        
+        .editor-toolbar button.active {
+            background-color: var(--primary);
+            color: var(--primary-inverse);
+        }
+        
+        .editor-preview,
+        .editor-preview-side {
+            background-color: var(--card-background-color);
+            color: var(--color);
+            border: 1px solid var(--form-element-border-color);
+        }
+        
+        .CodeMirror-gutters {
+            background-color: var(--card-sectionning-background-color);
+            border-right: 1px solid var(--form-element-border-color);
+        }
+        
+        .CodeMirror-selected {
+            background-color: var(--primary-focus);
+        }
+        
+        .CodeMirror-cursor {
+            border-left: 1px solid var(--color);
+        }
+        
+        /* Fix toolbar icon visibility in dark mode */
+        .editor-toolbar a:before {
+            color: var(--color) !important;
+        }
+        
+        .editor-toolbar a.fa-header:before,
+        .editor-toolbar a.fa-heading:before {
+            content: "H";
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .editor-toolbar a.fa-bold:before {
+            content: "B";
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        
+        .editor-toolbar a.fa-italic:before {
+            content: "I";
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            font-style: italic;
+            font-weight: bold;
+        }
+        
+        .editor-toolbar a.fa-quote-left:before {
+            content: "❝";
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+        }
+        
+        .editor-toolbar a.fa-list-ul:before {
+            content: "•";
+            font-family: Arial, sans-serif;
+            font-size: 20px;
+        }
+        
+        .editor-toolbar a.fa-list-ol:before {
+            content: "1.";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-toolbar a.fa-link:before {
+            content: "🔗";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-toolbar a.fa-picture-o:before {
+            content: "🖼️";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-toolbar a.fa-eye:before {
+            content: "👁️";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-toolbar a.fa-columns:before {
+            content: "⚏";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-toolbar a.fa-arrows-alt:before {
+            content: "↔️";
+            font-family: Arial, sans-serif;
+            font-size: 15px;
+        }
+        
+        .editor-statusbar {
+            color: var(--muted-color);
+            background-color: var(--card-sectionning-background-color);
+            border: 1px solid var(--form-element-border-color);
+            border-top: none;
+            border-bottom-left-radius: var(--border-radius);
+            border-bottom-right-radius: var(--border-radius);
+            padding: 5px 10px;
+        }
+        
+        /* Improve note content display */
+        .note-content {
+            background-color: var(--card-sectionning-background-color);
+            padding: 0.75rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Note actions buttons */
+        .note-actions button {
+            margin: 0 0.25rem;
+            padding: 0.25rem 0.5rem;
+            font-size: 0.85rem;
+        }
+        
+        /* Add some margin to the add-note-form */
+        .add-note-form {
+            margin-top: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Pomonotes</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/">Timer</a></li>
+            <li><a href="/history" class="active">History</a></li>
+            <li><a href="/notes">Notes</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <article>
+            <header>
+                <h1>Session History</h1>
+                <p>Review your past Pomodoro sessions</p>
+            </header>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Date</th>
+                            <th>Pomodoros</th>
+                            <th>Total Time</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sessions-table-body">
+                        <tr>
+                            <td colspan="6">Loading sessions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </main>
+    
+    <!-- Session Detail Modal -->
+    <dialog id="session-modal">
+        <article>
+            <header>
+                <a href="#close" aria-label="Close" class="close" id="close-modal"></a>
+                <h3>Session Details</h3>
+            </header>
+            <div id="session-details">
+                <!-- Details will be loaded here -->
+            </div>
+            <div class="session-notes-container">
+                <h4>Session Notes</h4>
+                <div id="session-notes-list">
+                    <!-- Notes will be loaded here -->
+                </div>
+                <div class="add-note-form">
+                    <textarea id="add-note-textarea" placeholder="Add a new note to this session..."></textarea>
+                    <button id="add-note-btn">Add Note</button>
+                </div>
+            </div>
+        </article>
+    </dialog>
+
+    <script src="/static/history.js"></script>
+</body>
+</html>

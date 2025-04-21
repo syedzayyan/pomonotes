@@ -54,33 +54,13 @@ The application uses a four-table design:
 3. **Breaks**: Stores break periods between pomodoros
 4. **Notes**: Contains markdown notes linked to sessions/pomodoros
 
-This structure allows for detailed tracking of your work patterns while maintaining a simple user experience.
-
-### UI/UX Approach
-
-The interface follows a dark-mode minimalist design with these principles:
-
-- Focus on the timer during work sessions
-- Easy access to note-taking without distraction
-- Clear visualization of progress
-- Mobile-first but optimized for desktop
-- Modal confirmations for destructive actions
-
-### Progressive Web App
-
-Pomonotes is designed as a PWA to provide:
-
-- Offline functionality
-- Installation on mobile/desktop
-- Native app-like experience
-- Timer notifications
 
 ## Local Development
 
 1. Clone the repository
 2. Make sure Go is installed
 3. Install dependencies: `go get`
-4. Run the application: `go run *.go`
+4. Run the application: `go run *.go ADMIN_PASSWORD=your_pass JWT_SECRET=your_secure_jwt_secret go run *.go`
 5. Visit `http://localhost:8080` in your browser
 
 ## Future Enhancements

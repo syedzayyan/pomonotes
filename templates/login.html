@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Pomonotes</strong></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <article class="login-container">
+            <header>
+                <h1>Login to Pomonotes</h1>
+                <p>Enter your admin password to continue</p>
+            </header>
+
+            <div class="login-form">
+                <form id="login-form">
+                    <div class="alert-container" id="login-alert"></div>
+                    
+                    <label for="password">Admin Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter admin password" required>
+                    
+                    <button type="submit" id="login-button">Login</button>
+                </form>
+            </div>
+        </article>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loginForm = document.getElementById('login-form');
+            const loginAlert = document.getElementById('login-alert');
+            
+            // Check if we're already logged in
+            checkAuthStatus();
+            
+            // Login form submission
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const password = document.getElementById('password').value;
+                
+                try {
+                    // Clear any previous alerts
+                    loginAlert.innerHTML = '';
+                    
+                    // Disable the button and show loading state
+                    const loginButton = document.getElementById('login-button');
+                    loginButton.disabled = true;
+                    loginButton.textContent = 'Logging in...';
+                    
+                    // Send login request
+                    const response = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ password })
+                    });
+                    
+                    // Parse response
+                    const data = await response.json();
+                    
+                    // Reset button state
+                    loginButton.disabled = false;
+                    loginButton.textContent = 'Login';
+                    
+                    if (response.ok) {
+                        // Success - save token as cookie
+                        document.cookie = `auth_token=${data.token}; path=/; max-age=${60*60*24*3}`; // 3 days
+                        
+                        // Redirect to main page
+                        window.location.href = '/';
+                    } else {
+                        // Show error message
+                        loginAlert.innerHTML = `
+                            <div class="alert alert-error">
+                                ${data.error || 'Login failed. Please try again.'}
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    console.error('Login error:', error);
+                    loginAlert.innerHTML = `
+                        <div class="alert alert-error">
+                            Login error. Please try again later.
+                        </div>
+                    `;
+                    
+                    // Reset button state
+                    const loginButton = document.getElementById('login-button');
+                    loginButton.disabled = false;
+                    loginButton.textContent = 'Login';
+                }
+            });
+            
+            // Check authentication status
+            async function checkAuthStatus() {
+                try {
+                    const response = await fetch('/api/auth/status');
+                    const data = await response.json();
+                    
+                    if (data.authenticated) {
+                        // If already authenticated, redirect to home
+                        window.location.href = '/';
+                    }
+                } catch (error) {
+                    console.error('Auth check error:', error);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

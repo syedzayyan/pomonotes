@@ -318,3 +318,197 @@ h2 {
         align-items: stretch;
     }
 }
+
+
+/* Authentication styles to add to style.css */
+
+/* Login container */
+.login-container {
+    max-width: 400px;
+    margin: 2rem auto;
+}
+
+.login-form {
+    margin-top: 1.5rem;
+}
+
+.alert-container {
+    margin-bottom: 1rem;
+}
+
+.alert {
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.alert-error {
+    background-color: rgba(231, 76, 60, 0.2);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    color: #e74c3c;
+}
+
+.alert-success {
+    background-color: rgba(46, 204, 113, 0.2);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    color: #2ecc71;
+}
+
+/* Auth modal styling */
+#auth-modal article {
+    width: 400px;
+}
+
+#auth-modal footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+/* Logout button */
+.logout-btn {
+    cursor: pointer;
+}
+
+
+
+
+  /* SimpleMDE Dark Theme Styles */
+  .CodeMirror {
+    background-color: var(--card-background-color);
+    color: var(--color);
+    border: 1px solid var(--form-element-border-color);
+    border-radius: var(--border-radius);
+  }
+  
+  .editor-toolbar {
+    background-color: var(--card-sectionning-background-color);
+    border: 1px solid var(--form-element-border-color);
+    border-bottom: none;
+    border-top-left-radius: var(--border-radius);
+    border-top-right-radius: var(--border-radius);
+    opacity: 1;
+  }
+  
+  .editor-toolbar button {
+    color: var(--color);
+  }
+  
+  .editor-toolbar button:hover {
+    background-color: var(--primary-hover);
+    color: var(--primary-inverse);
+  }
+  
+  .editor-toolbar.disabled-for-preview button:not(.no-disable) {
+    opacity: 0.5;
+  }
+  
+  .editor-toolbar button.active {
+    background-color: var(--primary);
+    color: var(--primary-inverse);
+  }
+  
+  .editor-preview,
+  .editor-preview-side {
+    background-color: var(--card-background-color);
+    color: var(--color);
+    border: 1px solid var(--form-element-border-color);
+  }
+  
+  .CodeMirror-gutters {
+    background-color: var(--card-sectionning-background-color);
+    border-right: 1px solid var(--form-element-border-color);
+  }
+  
+  .CodeMirror-selected {
+    background-color: var(--primary-focus);
+  }
+  
+  .CodeMirror-cursor {
+    border-left: 1px solid var(--color);
+  }
+  
+  /* Fix toolbar icon visibility in dark mode */
+  .editor-toolbar a:before {
+    color: var(--color) !important;
+  }
+  
+  .editor-toolbar a.fa-header:before,
+  .editor-toolbar a.fa-heading:before {
+    content: "H";
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  
+  .editor-toolbar a.fa-bold:before {
+    content: "B";
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    font-weight: bold;
+  }
+  
+  .editor-toolbar a.fa-italic:before {
+    content: "I";
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+    font-style: italic;
+    font-weight: bold;
+  }
+  
+  .editor-toolbar a.fa-quote-left:before {
+    content: "❝";
+    font-family: Arial, sans-serif;
+    font-size: 18px;
+  }
+  
+  .editor-toolbar a.fa-list-ul:before {
+    content: "•";
+    font-family: Arial, sans-serif;
+    font-size: 20px;
+  }
+  
+  .editor-toolbar a.fa-list-ol:before {
+    content: "1.";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-toolbar a.fa-link:before {
+    content: "🔗";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-toolbar a.fa-picture-o:before {
+    content: "🖼️";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-toolbar a.fa-eye:before {
+    content: "👁️";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-toolbar a.fa-columns:before {
+    content: "⚏";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-toolbar a.fa-arrows-alt:before {
+    content: "↔️";
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+  }
+  
+  .editor-statusbar {
+    color: var(--muted-color);
+    background-color: var(--card-sectionning-background-color);
+    border: 1px solid var(--form-element-border-color);
+    border-top: none;
+    border-bottom-left-radius: var(--border-radius);
+    border-bottom-right-radius: var(--border-radius);
+    padding: 5px 10px;
+  }

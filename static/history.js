@@ -8,9 +8,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const addNoteBtn = document.getElementById('add-note-btn');
     
     let currentSessionId = null;
+    let addNoteEditor = null;
+    let editNoteEditor = null;
     
     // Load sessions on page load
     loadSessions();
+    
+    // Initialize SimpleMDE for add note textarea when modal is shown
+    function initializeAddNoteEditor() {
+        if (!addNoteEditor && addNoteTextarea) {
+            addNoteEditor = new SimpleMDE({
+                element: addNoteTextarea,
+                spellChecker: false,
+                status: false,
+                placeholder: "Add a new note to this session...",
+                toolbar: [
+                    'bold', 'italic', 'heading', '|',
+                    'quote', 'unordered-list', 'ordered-list', '|',
+                    'link', 'image', '|',
+                    'preview', 'guide'
+                ]
+            });
+        }
+    }
     
     // Load sessions data using fetch
     function loadSessions() {
@@ -148,6 +168,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 // Show the modal
                 sessionModal.showModal();
+                
+                // Initialize the add note editor
+                setTimeout(initializeAddNoteEditor, 100);
             })
             .catch(error => {
                 console.error('Error loading session details:', error);
@@ -167,9 +190,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         const noteDiv = document.createElement('div');
                         noteDiv.className = 'note-item';
                         
-                        // Render markdown
+                        // Store the raw markdown and render it
                         noteDiv.innerHTML = `
-                            <div class="note-content">${marked.parse(note.note)}</div>
+                            <div class="note-content" data-markdown="${escapeHTML(note.note)}">${marked.parse(note.note)}</div>
                             <div class="note-actions">
                                 <button class="edit-note" data-note-id="${note.id}">Edit</button>
                                 <button class="delete-note" data-note-id="${note.id}">Delete</button>
@@ -198,23 +221,56 @@ document.addEventListener('DOMContentLoaded', () => {
             button.addEventListener('click', function() {
                 const noteId = this.getAttribute('data-note-id');
                 const noteItem = this.closest('.note-item');
-                const markdownContent = noteItem.querySelector('.note-content').textContent;
                 
+                // Get the raw markdown content
+                const markdownContent = noteItem.querySelector('.note-content').dataset.markdown || 
+                                       noteItem.querySelector('.note-content').textContent;
+                
+                // Replace with textarea for editing
                 noteItem.innerHTML = `
-                    <textarea class="edit-note-textarea">${markdownContent}</textarea>
+                    <textarea class="edit-note-textarea" id="edit-note-${noteId}">${markdownContent}</textarea>
                     <div class="note-actions">
                         <button class="save-edit" data-note-id="${noteId}">Save</button>
                         <button class="cancel-edit">Cancel</button>
                     </div>
                 `;
                 
+                // Initialize SimpleMDE for the edit textarea
+                const editTextarea = document.getElementById(`edit-note-${noteId}`);
+                if (editTextarea) {
+                    editNoteEditor = new SimpleMDE({
+                        element: editTextarea,
+                        spellChecker: false,
+                        status: false,
+                        toolbar: [
+                            'bold', 'italic', 'heading', '|',
+                            'quote', 'unordered-list', 'ordered-list', '|',
+                            'link', 'image', '|',
+                            'preview', 'guide'
+                        ]
+                    });
+                }
+                
                 // Set up save and cancel handlers
                 noteItem.querySelector('.save-edit').addEventListener('click', function() {
-                    const updatedNote = noteItem.querySelector('.edit-note-textarea').value;
+                    const updatedNote = editNoteEditor ? editNoteEditor.value() : 
+                                        noteItem.querySelector('.edit-note-textarea').value;
                     updateNote(noteId, updatedNote);
+                    
+                    // Clean up SimpleMDE instance
+                    if (editNoteEditor) {
+                        editNoteEditor.toTextArea();
+                        editNoteEditor = null;
+                    }
                 });
                 
                 noteItem.querySelector('.cancel-edit').addEventListener('click', function() {
+                    // Clean up SimpleMDE instance
+                    if (editNoteEditor) {
+                        editNoteEditor.toTextArea();
+                        editNoteEditor = null;
+                    }
+                    
                     // Reload notes to cancel edit
                     loadSessionNotes(currentSessionId);
                 });
@@ -286,36 +342,84 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Add a new note to the current session
     function addNote() {
-        const noteText = addNoteTextarea.value.trim();
+        const noteText = addNoteEditor ? addNoteEditor.value() : addNoteTextarea.value.trim();
         
         if (!noteText) {
             alert('Please enter a note before saving.');
             return;
         }
         
+        // Create a simple object with the required fields
+        const noteData = {
+            "session_id": parseInt(currentSessionId, 10),
+            "pomodoro_id": 0,
+            "note": noteText
+        };
+        
+        console.log('Sending note data:', noteData);
+        
         fetch('/api/notes', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                session_id: currentSessionId,
-                note: noteText
-            })
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(noteData)
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => {
+                    console.error('Server error response:', text);
+                    try {
+                        const errorData = JSON.parse(text);
+                        throw new Error(errorData.error || 'Error adding note');
+                    } catch (e) {
+                        throw new Error('Error adding note: ' + response.status);
+                    }
+                });
+            }
+            return response.json();
+        })
         .then(data => {
-            console.log('Note added:', data);
-            addNoteTextarea.value = ''; // Clear the textarea
+            console.log('Note added successfully:', data);
+            
+            // Clear the editor
+            if (addNoteEditor) {
+                addNoteEditor.value('');
+            } else {
+                addNoteTextarea.value = '';
+            }
+            
+            // Reload the notes list
             loadSessionNotes(currentSessionId);
         })
         .catch(error => {
             console.error('Error adding note:', error);
-            alert('Failed to add note. Please try again.');
+            alert('Failed to add note: ' + error.message);
         });
+    }
+    
+    // Helper function to escape HTML
+    function escapeHTML(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
     
     // Event listeners
     if (closeModalBtn) {
         closeModalBtn.addEventListener('click', () => {
+            // Clean up SimpleMDE instances when closing modal
+            if (addNoteEditor) {
+                addNoteEditor.toTextArea();
+                addNoteEditor = null;
+            }
+            if (editNoteEditor) {
+                editNoteEditor.toTextArea();
+                editNoteEditor = null;
+            }
             sessionModal.close();
         });
     }

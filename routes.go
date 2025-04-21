@@ -8,34 +8,44 @@ func setupRoutes(e *echo.Echo) {
 	// Serve static files (CSS, JS, etc.)
 	e.Static("/static", "static")
 
-	// Serve the homepage and other HTML pages
-	e.GET("/", homepage)
-	e.GET("/history", historyPage)
-	e.GET("/notes", notesPage)
+	// Authentication routes - these don't need auth protection
+	e.POST("/api/login", loginHandler)
+	e.GET("/api/auth/status", authStatusHandler, optionalAuth)
+	e.GET("/login", loginPage) // Dedicated login page
 
-	// Session CRUD
-	e.POST("/api/sessions", createSessionHandler)
-	e.GET("/api/sessions", getSessionsHandler)
-	e.GET("/api/sessions/:id", getSessionHandler)
-	e.PUT("/api/sessions/:id", updateSessionHandler)
-	e.DELETE("/api/sessions/:id", deleteSessionHandler)
+	// Create a group for routes that require authentication
+	authGroup := e.Group("")
+	authMiddleware := configureJWTMiddleware()
+	authGroup.Use(authMiddleware)
 
-	// Pomodoro CRUD
-	e.POST("/api/pomodoros", createPomodoroHandler)
-	e.GET("/api/pomodoros/:session_id", getPomodorosHandler)
-	e.PUT("/api/pomodoros/:id", updatePomodoroHandler)
+	// Serve the homepage and other HTML pages - protected routes
+	authGroup.GET("/", homepage)
+	authGroup.GET("/history", historyPage)
+	authGroup.GET("/notes", notesPage)
 
-	// Break CRUD
-	e.POST("/api/breaks", createBreakHandler)
-	e.GET("/api/breaks/:session_id", getBreaksHandler)
-	e.PUT("/api/breaks/:id", updateBreakHandler)
+	// Session CRUD - protected API routes
+	authGroup.POST("/api/sessions", createSessionHandler)
+	authGroup.GET("/api/sessions", getSessionsHandler)
+	authGroup.GET("/api/sessions/:id", getSessionHandler)
+	authGroup.PUT("/api/sessions/:id", updateSessionHandler)
+	authGroup.DELETE("/api/sessions/:id", deleteSessionHandler)
 
-	// Note CRUD
-	e.POST("/api/notes", createNoteHandler)
-	e.GET("/api/notes/:session_id", getNotesHandler)
-	e.GET("/api/notes", getAllNotesHandler)  // Get all notes for browsing
-	e.PUT("/api/notes/:id", updateNoteHandler)
-	e.DELETE("/api/notes/:id", deleteNoteHandler)
+	// Pomodoro CRUD - protected API routes
+	authGroup.POST("/api/pomodoros", createPomodoroHandler)
+	authGroup.GET("/api/pomodoros/:session_id", getPomodorosHandler)
+	authGroup.PUT("/api/pomodoros/:id", updatePomodoroHandler)
+
+	// Break CRUD - protected API routes
+	authGroup.POST("/api/breaks", createBreakHandler)
+	authGroup.GET("/api/breaks/:session_id", getBreaksHandler)
+	authGroup.PUT("/api/breaks/:id", updateBreakHandler)
+
+	// Note CRUD - protected API routes
+	authGroup.POST("/api/notes", createNoteHandler)
+	authGroup.GET("/api/notes/:session_id", getNotesHandler)
+	authGroup.GET("/api/notes", getAllNotesHandler)  // Get all notes for browsing
+	authGroup.PUT("/api/notes/:id", updateNoteHandler)
+	authGroup.DELETE("/api/notes/:id", deleteNoteHandler)
 	
 	// For the PWA
 	e.GET("/manifest.json", func(c echo.Context) error {
@@ -45,15 +55,20 @@ func setupRoutes(e *echo.Echo) {
 
 // Homepage serves the index.html
 func homepage(c echo.Context) error {
-	return c.File("web/index.html")
+	return c.File("templates/index.html")
 }
 
 // History page serves the history.html
 func historyPage(c echo.Context) error {
-	return c.File("web/history.html")
+	return c.File("templates/history.html")
 }
 
 // Notes page serves the notes.html
 func notesPage(c echo.Context) error {
-	return c.File("web/notes.html")
+	return c.File("templates/notes.html")
+}
+
+// Login page serves the login.html
+func loginPage(c echo.Context) error {
+	return c.File("templates/login.html")
 }

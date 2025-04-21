@@ -12,6 +12,9 @@ func main() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+		AllowCredentials: true,
+	}))
 
 	// Initialize the database
 	initDB()
@@ -21,5 +24,5 @@ func main() {
 
 	// Start server
 	log.Println("Server is running on http://localhost:8080")
-	log.Fatal(e.Start(":8080"))
+	log.Fatal(e.Start("0.0.0.0:8080"))
 }
