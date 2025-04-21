@@ -5,10 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pomonotes</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/htmx.org@1.9.6"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
     <link rel="manifest" href="/static/manifest.json">
 </head>
 <body>
@@ -59,15 +61,7 @@
                         <h2>Session Notes</h2>
                     </header>
                     <div class="editor-container">
-                        <div id="toolbar">
-                            <button id="bold-btn" type="button" class="outline">B</button>
-                            <button id="italic-btn" type="button" class="outline">I</button>
-                            <button id="heading-btn" type="button" class="outline">H</button>
-                            <button id="link-btn" type="button" class="outline">🔗</button>
-                            <button id="list-btn" type="button" class="outline">•</button>
-                        </div>
                         <textarea id="markdown-editor" placeholder="Write your session notes in markdown here..."></textarea>
-                        <div id="markdown-preview"></div>
                     </div>
                     <button class="save-btn">Save Note</button>
                 </article>

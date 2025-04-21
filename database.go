@@ -12,7 +12,7 @@ var db *sql.DB
 type Session struct {
 	ID          int    `json:"id"`
 	StartTime   string `json:"start_time"`
-	EndTime     string `json:"end_time"`
+	EndTime     *string `json:"end_time"`
 	TotalTime   int    `json:"total_time"`
 	Status      string `json:"status"`
 	Completed   int    `json:"completed_pomodoros"`
@@ -156,26 +156,30 @@ func getSessions() ([]Session, error) {
 	}
 	return sessions, nil
 }
-
 func getSession(id int) (Session, error) {
-	row := db.QueryRow("SELECT id, start_time, end_time, total_time, status, completed_pomodoros FROM sessions WHERE id = ?", id)
-	var session Session
-	err := row.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed)
-	if err != nil {
-		return session, err
-	}
-	return session, nil
+    row := db.QueryRow("SELECT id, start_time, end_time, total_time, status, completed_pomodoros FROM sessions WHERE id = ?", id)
+    var session Session
+    err := row.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed)
+    if err != nil {
+        return session, err
+    }
+    return session, nil
 }
-
-func updateSession(id int, endTime string, totalTime int, status string, completedPomodoros int) error {
-	statement, err := db.Prepare("UPDATE sessions SET end_time = ?, total_time = ?, status = ?, completed_pomodoros = ? WHERE id = ?")
-	if err != nil {
-		return err
-	}
-	_, err = statement.Exec(endTime, totalTime, status, completedPomodoros, id)
-	return err
+func updateSession(id int, endTime *string, totalTime int, status string, completedPomodoros int) error {
+    statement, err := db.Prepare("UPDATE sessions SET end_time = ?, total_time = ?, status = ?, completed_pomodoros = ? WHERE id = ?")
+    if err != nil {
+        return err
+    }
+    
+    // Dereference the pointer or use NULL if it's nil
+    var endTimeValue interface{} = nil
+    if endTime != nil {
+        endTimeValue = *endTime
+    }
+    
+    _, err = statement.Exec(endTimeValue, totalTime, status, completedPomodoros, id)
+    return err
 }
-
 func deleteSession(id int) error {
 	// First delete related breaks
 	_, err := db.Exec("DELETE FROM breaks WHERE session_id = ?", id)

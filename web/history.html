@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link rel="manifest" href="/static/manifest.json">
 </head>
 <body>
@@ -40,7 +41,7 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody id="sessions-table-body" hx-get="/api/sessions" hx-trigger="load" hx-swap="innerHTML">
+                    <tbody id="sessions-table-body">
                         <tr>
                             <td colspan="6">Loading sessions...</td>
                         </tr>

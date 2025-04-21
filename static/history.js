@@ -9,59 +9,76 @@ document.addEventListener('DOMContentLoaded', () => {
     
     let currentSessionId = null;
     
-    // Load sessions data via HTMX
-    htmx.on('htmx:afterSwap', function(event) {
-        if (event.detail.target.id === 'sessions-table-body') {
-            // This event fires after HTMX replaces the table body content
-            setupSessionClickHandlers();
-        }
-    });
+    // Load sessions on page load
+    loadSessions();
     
-    // Process sessions response from server
-    htmx.onLoad(function(content) {
-        if (content.id === 'sessions-table-body') {
-            const sessions = JSON.parse(content.textContent);
-            
-            if (sessions && sessions.length > 0) {
-                content.innerHTML = ''; // Clear loading message
+    // Load sessions data using fetch
+    function loadSessions() {
+        sessionsTableBody.innerHTML = '<tr><td colspan="6">Loading sessions...</td></tr>';
+        
+        fetch('/api/sessions')
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.text(); // First get as text to see what we're actually getting
+            })
+            .then(text => {
+                console.log('Raw response:', text);
+                try {
+                    return JSON.parse(text); // Now try to parse as JSON
+                } catch (e) {
+                    console.error('Failed to parse JSON:', e);
+                    sessionsTableBody.innerHTML = '<tr><td colspan="6">Error parsing server response.</td></tr>';
+                    throw e;
+                }
+            })
+            .then(sessions => {
+                console.log('Parsed sessions:', sessions);
                 
-                sessions.forEach(session => {
-                    // Calculate number of completed pomodoros (25min each)
-                    const completedPomodoros = Math.floor(session.duration / (25 * 60));
+                if (sessions && sessions.length > 0) {
+                    sessionsTableBody.innerHTML = ''; // Clear loading message
                     
-                    // Format start time
-                    const startDate = new Date(session.start_time);
-                    const formattedDate = startDate.toLocaleDateString();
+                    sessions.forEach(session => {
+                        console.log('Processing session:', session);
+                        // Get completed pomodoros
+                        const completedPomodoros = session.completed_pomodoros || 0;
+                        
+                        // Format start time
+                        const startDate = new Date(session.start_time);
+                        const formattedDate = startDate.toLocaleDateString();
+                        
+                        // Calculate total time in minutes
+                        const totalMinutes = Math.round(session.total_time / 60);
+                        
+                        // Create row
+                        const row = document.createElement('tr');
+                        row.setAttribute('data-session-id', session.id);
+                        row.className = 'session-row';
+                        
+                        row.innerHTML = `
+                            <td>${session.id}</td>
+                            <td>${formattedDate}</td>
+                            <td>${completedPomodoros}/4</td>
+                            <td>${totalMinutes} min</td>
+                            <td><span class="status-badge ${session.status}">${session.status}</span></td>
+                            <td>
+                                <button class="view-session" data-session-id="${session.id}">View</button>
+                                <button class="delete-session" data-session-id="${session.id}">Delete</button>
+                            </td>
+                        `;
+                        
+                        sessionsTableBody.appendChild(row);
+                    });
                     
-                    // Calculate total time in minutes
-                    const totalMinutes = Math.round(session.duration / 60);
-                    
-                    // Create row
-                    const row = document.createElement('tr');
-                    row.setAttribute('data-session-id', session.id);
-                    row.className = 'session-row';
-                    
-                    row.innerHTML = `
-                        <td>${session.id}</td>
-                        <td>${formattedDate}</td>
-                        <td>${completedPomodoros}/4</td>
-                        <td>${totalMinutes} min</td>
-                        <td><span class="status-badge ${session.status}">${session.status}</span></td>
-                        <td>
-                            <button class="view-session" data-session-id="${session.id}">View</button>
-                            <button class="delete-session" data-session-id="${session.id}">Delete</button>
-                        </td>
-                    `;
-                    
-                    content.appendChild(row);
-                });
-                
-                setupSessionClickHandlers();
-            } else {
-                content.innerHTML = '<tr><td colspan="6">No sessions found.</td></tr>';
-            }
-        }
-    });
+                    setupSessionClickHandlers();
+                } else {
+                    sessionsTableBody.innerHTML = '<tr><td colspan="6">No sessions found.</td></tr>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading sessions:', error);
+                sessionsTableBody.innerHTML = '<tr><td colspan="6">Error loading sessions. Please try again.</td></tr>';
+            });
+    }
     
     // Setup click handlers for session rows
     function setupSessionClickHandlers() {
@@ -105,8 +122,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     endTime = endDate.toLocaleString();
                 }
                 
-                const totalMinutes = Math.round(session.duration / 60);
-                const completedPomodoros = Math.floor(session.duration / (25 * 60));
+                const totalMinutes = Math.round(session.total_time / 60);
+                const completedPomodoros = session.completed_pomodoros || 0;
                 
                 // Update modal content
                 sessionDetails.innerHTML = `
@@ -180,9 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.edit-note').forEach(button => {
             button.addEventListener('click', function() {
                 const noteId = this.getAttribute('data-note-id');
-                const noteContent = this.closest('.note-item').querySelector('.note-content').innerHTML;
-                
-                // Replace note display with textarea for editing
                 const noteItem = this.closest('.note-item');
                 const markdownContent = noteItem.querySelector('.note-content').textContent;
                 
@@ -262,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             console.log('Session deleted:', data);
             // Refresh the sessions list
-            htmx.trigger('#sessions-table-body', 'htmx:load');
+            loadSessions();
         })
         .catch(error => {
             console.error('Error deleting session:', error);

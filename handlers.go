@@ -3,7 +3,6 @@ package main
 import (
 	"net/http"
 	"strconv"
-
 	"github.com/labstack/echo/v4"
 )
 
@@ -48,34 +47,32 @@ func getSessionHandler(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, session)
 }
-
 func updateSessionHandler(c echo.Context) error {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid session ID"})
-	}
+    id, err := strconv.Atoi(c.Param("id"))
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid session ID"})
+    }
 
-	// Get existing session
-	_, err = getSession(id)
-	if err != nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Session not found"})
-	}
+    // Get existing session
+    _, err = getSession(id)
+    if err != nil {
+        return c.JSON(http.StatusNotFound, map[string]string{"error": "Session not found"})
+    }
 
-	// Update session
-	session := new(Session)
-	if err := c.Bind(session); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request data"})
-	}
+    // Update session
+    session := new(Session)
+    if err := c.Bind(session); err != nil {
+        return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request data"})
+    }
 
-	// Call the updateSession function with the id parameter
-	err = updateSession(id, session.EndTime, session.TotalTime, session.Status, session.Completed)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-	}
+    // Call the updateSession function with the id parameter
+    err = updateSession(id, session.EndTime, session.TotalTime, session.Status, session.Completed)
+    if err != nil {
+        return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+    }
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "Session updated successfully"})
+    return c.JSON(http.StatusOK, map[string]string{"message": "Session updated successfully"})
 }
-
 func deleteSessionHandler(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
