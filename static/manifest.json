@@ -1,0 +1,21 @@
+{
+  "name": "Pomonotes",
+  "short_name": "Pomonotes",
+  "description": "Pomodoro timer with markdown note-taking",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#11191f",
+  "theme_color": "#11191f",
+  "icons": [
+    {
+      "src": "/static/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

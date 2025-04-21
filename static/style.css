@@ -1,0 +1,320 @@
+/* Custom styles to complement Pico CSS */
+
+/* App Layout */
+.app-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+@media (min-width: 992px) {
+    .app-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: 
+            "timer notes"
+            "chart chart";
+    }
+    
+    .timer-section {
+        grid-area: timer;
+    }
+    
+    .notes-section {
+        grid-area: notes;
+    }
+    
+    .chart-section {
+        grid-area: chart;
+    }
+}
+
+/* Timer styles */
+.timer-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 1rem 0;
+}
+
+.radial-timer-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+    margin: 0 auto 1rem;
+}
+
+.radial-timer {
+    transform: rotate(-90deg);
+    width: 100%;
+    height: 100%;
+}
+
+.radial-timer circle {
+    fill: transparent;
+    stroke-width: 8;
+    transition: stroke-dashoffset 0.3s;
+}
+
+.radial-timer circle.base {
+    stroke: var(--card-background-color);
+}
+
+.radial-timer circle.progress {
+    stroke: #e74c3c;
+    stroke-linecap: round;
+}
+
+#timer-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2.5rem;
+    font-weight: bold;
+}
+
+.pomodoro-counter {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+}
+
+.timer-controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+/* Button states */
+.start-btn.paused {
+    background-color: #f39c12; /* Orange for paused state */
+}
+
+.stop-btn {
+    background-color: #e74c3c;
+}
+
+.reset-btn {
+    background-color: #3498db;
+}
+
+/* Notes editor */
+.editor-container {
+    border: 1px solid var(--form-element-border-color);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+    margin-bottom: 1rem;
+}
+
+#toolbar {
+    display: flex;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--form-element-border-color);
+    background-color: var(--card-background-color);
+}
+
+#toolbar button {
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+    background: none;
+}
+
+#markdown-editor {
+    width: 100%;
+    height: 180px;
+    border: none;
+    padding: 1rem;
+    border-bottom: 1px solid var(--form-element-border-color);
+}
+
+#markdown-preview {
+    padding: 1rem;
+    min-height: 100px;
+    max-height: 180px;
+    overflow-y: auto;
+    background-color: var(--card-background-color);
+}
+
+/* Weekly summary chart */
+#weekly-chart {
+    height: 250px;
+}
+
+/* Session history table */
+.table-container {
+    overflow-x: auto;
+}
+
+.status-badge {
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    display: inline-block;
+}
+
+.status-badge.running {
+    background-color: #3498db;
+    color: white;
+}
+
+.status-badge.completed {
+    background-color: #2ecc71;
+    color: white;
+}
+
+.status-badge.stopped, .status-badge.cancelled {
+    background-color: #e74c3c;
+    color: white;
+}
+
+.status-badge.in-progress {
+    background-color: #f39c12;
+    color: white;
+}
+
+.status-badge.paused {
+    background-color: #9b59b6;
+    color: white;
+}
+
+/* Session modal */
+dialog article {
+    max-width: 100%;
+    width: 600px;
+}
+
+dialog dl {
+    display: grid;
+    grid-template-columns: 30% 70%;
+    gap: 0.5rem;
+}
+
+dialog dt {
+    font-weight: bold;
+}
+
+.session-notes-container {
+    margin-top: 2rem;
+}
+
+.note-item {
+    background-color: var(--card-background-color);
+    padding: 1rem;
+    border-radius: var(--border-radius);
+    margin-bottom: 1rem;
+}
+
+.note-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.add-note-form {
+    margin-top: 1.5rem;
+}
+
+/* Modal styling */
+#confirm-modal article {
+    width: 400px;
+}
+
+#confirm-modal footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+}
+
+/* Notes page */
+.filters {
+    margin-bottom: 2rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: center;
+}
+
+.date-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.note-card {
+    margin-bottom: 1.5rem;
+}
+
+.note-date {
+    opacity: 0.7;
+    font-size: 0.9rem;
+}
+
+.note-session {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.session-badge {
+    background-color: var(--card-background-color);
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--border-radius);
+    font-size: 0.8rem;
+}
+
+/* Compact the overall UI */
+article {
+    margin-bottom: 1rem;
+    padding: 1.25rem;
+}
+
+article header {
+    margin-bottom: 1rem;
+}
+
+h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+h2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* PWA styles */
+@media (display-mode: standalone) {
+    body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .timer-controls {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .timer-controls button {
+        width: 100%;
+    }
+    
+    .filters {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .date-filter {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

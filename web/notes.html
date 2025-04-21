@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes - Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="manifest" href="/static/manifest.json">
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Pomonotes</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/">Timer</a></li>
+            <li><a href="/history">History</a></li>
+            <li><a href="/notes" class="active">Notes</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <article>
+            <header>
+                <h1>All Notes</h1>
+                <p>Browse all your session notes</p>
+            </header>
+
+            <div class="filters">
+                <input type="text" id="search-notes" placeholder="Search notes..." aria-label="Search notes">
+                <div class="date-filter">
+                    <label for="date-from">From:</label>
+                    <input type="date" id="date-from">
+                    <label for="date-to">To:</label>
+                    <input type="date" id="date-to">
+                    <button id="apply-filters">Apply Filters</button>
+                </div>
+            </div>
+            
+            <div id="notes-container" hx-get="/api/notes" hx-trigger="load" hx-swap="innerHTML">
+                <p>Loading notes...</p>
+            </div>
+        </article>
+    </main>
+
+    <script src="/static/notes.js"></script>
+</body>
+</html>

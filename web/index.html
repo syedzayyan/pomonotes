@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="manifest" href="/static/manifest.json">
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Pomonotes</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/" class="active">Timer</a></li>
+            <li><a href="/history">History</a></li>
+            <li><a href="/notes">Notes</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <div class="app-layout">
+            <div class="timer-section">
+                <article>
+                    <header>
+                        <h1>Pomodoro Timer</h1>
+                    </header>
+
+                    <div class="timer-container">
+                        <div class="radial-timer-container">
+                            <svg class="radial-timer" viewBox="0 0 100 100">
+                                <circle class="base" cx="50" cy="50" r="45"></circle>
+                                <circle class="progress" cx="50" cy="50" r="45"></circle>
+                            </svg>
+                            <div id="timer-display">25:00</div>
+                        </div>
+                        
+                        <div class="pomodoro-counter">
+                            <span id="current-pomodoro">1</span>/4 Pomodoros
+                        </div>
+                        
+                        <div class="timer-controls">
+                            <button class="start-btn">Start</button>
+                            <button class="stop-btn">Stop</button>
+                            <button class="reset-btn">Reset</button>
+                        </div>
+                    </div>
+                </article>
+            </div>
+            
+            <div class="notes-section">
+                <article>
+                    <header>
+                        <h2>Session Notes</h2>
+                    </header>
+                    <div class="editor-container">
+                        <div id="toolbar">
+                            <button id="bold-btn" type="button" class="outline">B</button>
+                            <button id="italic-btn" type="button" class="outline">I</button>
+                            <button id="heading-btn" type="button" class="outline">H</button>
+                            <button id="link-btn" type="button" class="outline">🔗</button>
+                            <button id="list-btn" type="button" class="outline">•</button>
+                        </div>
+                        <textarea id="markdown-editor" placeholder="Write your session notes in markdown here..."></textarea>
+                        <div id="markdown-preview"></div>
+                    </div>
+                    <button class="save-btn">Save Note</button>
+                </article>
+            </div>
+            
+            <div class="chart-section">
+                <article>
+                    <header>
+                        <h2>7-Day Work Summary</h2>
+                    </header>
+                    <canvas id="weekly-chart"></canvas>
+                </article>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Confirmation Modal -->
+    <dialog id="confirm-modal">
+        <article>
+            <header>
+                <h3>Confirm Action</h3>
+            </header>
+            <p class="modal-message">Are you sure you want to perform this action?</p>
+            <footer>
+                <button class="cancel-btn secondary">Cancel</button>
+                <button class="confirm-btn">Confirm</button>
+            </footer>
+        </article>
+    </dialog>
+    
+    <script src="/static/script.js"></script>
+    <script>
+        // Register service worker for PWA
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/static/service-worker.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker registration failed:', err));
+        }
+    </script>
+</body>
+</html>
