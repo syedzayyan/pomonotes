@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,7 +15,11 @@
     <link rel="manifest" href="/static/manifest.json">
     <!-- Add auth.js script -->
     <script src="/static/auth.js"></script>
+
+
+    <script src="/static/theme.js"></script>
 </head>
+
 <body>
     <nav class="container-fluid">
         <ul>
@@ -24,6 +29,16 @@
             <li><a href="/" class="active">Timer</a></li>
             <li><a href="/history">History</a></li>
             <li><a href="/notes">Notes</a></li>
+            <!-- Add this to your navigation bar -->
+            <li class="theme-switcher">
+                <label class="theme-toggle">
+                    <input type="checkbox" id="theme-toggle">
+                    <span class="theme-slider">
+                        <span class="sun-icon"></span>
+                        <span class="moon-icon"></span>
+                    </span>
+                </label>
+            </li>
         </ul>
     </nav>
 
@@ -43,11 +58,11 @@
                             </svg>
                             <div id="timer-display">25:00</div>
                         </div>
-                        
+
                         <div class="pomodoro-counter">
                             <span id="current-pomodoro">1</span>/4 Pomodoros
                         </div>
-                        
+
                         <div class="timer-controls">
                             <button class="start-btn">Start</button>
                             <button class="stop-btn">Stop</button>
@@ -56,30 +71,59 @@
                     </div>
                 </article>
             </div>
-            
+
             <div class="notes-section">
                 <article>
                     <header>
                         <h2>Session Notes</h2>
                     </header>
                     <div class="editor-container">
-                        <textarea id="markdown-editor" placeholder="Write your session notes in markdown here..."></textarea>
+                        <textarea id="markdown-editor"
+                            placeholder="Write your session notes in markdown here..."></textarea>
                     </div>
                     <button class="save-btn">Save Note</button>
                 </article>
             </div>
-            
-            <div class="chart-section">
+
+            <div class="weekly-chart-section">
                 <article>
                     <header>
-                        <h2>7-Day Work Summary</h2>
+                        <h2>Weekly Activity</h2>
                     </header>
                     <canvas id="weekly-chart"></canvas>
                 </article>
             </div>
-        </div>
+            <div class="heatmap-section">
+                <article>
+                    <header>
+                        <h2>Activity History</h2>
+                    </header>
+
+                    <div class="heatmap-scroll-wrapper">
+                        <div class="heatmap-inner">
+                            <div class="month-labels" id="monthLabels"></div>
+
+                            <div class="heatmap-wrapper">
+                                <div class="day-labels">
+                                    <div>Mon</div>
+                                    <div>Tue</div>
+                                    <div>Wed</div>
+                                    <div>Thu</div>
+                                    <div>Fri</div>
+                                    <div>Sat</div>
+                                    <div>Sun</div>
+                                </div>
+
+                                <div class="heatmap" id="heatmap"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tooltip" id="tooltip"></div>
+                </article>
+            </div>
     </main>
-    
+
     <!-- Confirmation Modal -->
     <dialog id="confirm-modal">
         <article>
@@ -93,7 +137,7 @@
             </footer>
         </article>
     </dialog>
-    
+
     <script src="/static/script.js"></script>
     <script>
         // Register service worker for PWA
@@ -104,4 +148,5 @@
         }
     </script>
 </body>
+
 </html>
