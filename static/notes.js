@@ -4,8 +4,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateFrom = document.getElementById('date-from');
     const dateTo = document.getElementById('date-to');
     const applyFiltersBtn = document.getElementById('apply-filters');
+    const editorModal = document.getElementById('editor-modal');
     
     let allNotes = [];
+    let currentNoteId = null;
+    let fullPageEditor = null;
     
     // Initialize with current date range (last 30 days)
     function initializeDateRange() {
@@ -15,6 +18,34 @@ document.addEventListener('DOMContentLoaded', () => {
         
         dateTo.valueAsDate = today;
         dateFrom.valueAsDate = thirtyDaysAgo;
+    }
+    
+    // Initialize full page editor
+    function initializeFullPageEditor(noteContent, noteId) {
+        const editorTextarea = document.getElementById('fullpage-editor-textarea');
+        if (!editorTextarea) return;
+        
+        if (fullPageEditor) {
+            fullPageEditor.toTextArea();
+            fullPageEditor = null;
+        }
+        
+        editorTextarea.value = noteContent;
+        
+        fullPageEditor = new SimpleMDE({
+            element: editorTextarea,
+            spellChecker: false,
+            autofocus: true,
+            toolbar: [
+                'bold', 'italic', 'heading', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', 'image', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ]
+        });
+        
+        currentNoteId = noteId;
     }
     
     // Load all notes with session info
@@ -32,26 +63,19 @@ document.addEventListener('DOMContentLoaded', () => {
                     };
                 });
                 
-                // Now get all notes for each session
-                const notePromises = sessions.map(session => 
-                    fetch(`/api/notes/${session.id}`)
-                        .then(response => response.json())
-                        .then(notes => 
-                            notes.map(note => ({
-                                ...note,
-                                session: sessionMap[note.session_id]
-                            }))
-                        )
-                );
-                
-                return Promise.all(notePromises);
-            })
-            .then(notesArrays => {
-                // Flatten the array of arrays into a single array of notes
-                allNotes = notesArrays.flat();
-                
-                // Apply any filters
-                applyFilters();
+                // Now get all notes
+                fetch('/api/notes')
+                    .then(response => response.json())
+                    .then(notes => {
+                        // Add session info to each note
+                        allNotes = notes.map(note => ({
+                            ...note,
+                            session: sessionMap[note.session_id] || null
+                        }));
+                        
+                        // Apply any filters
+                        applyFilters();
+                    });
             })
             .catch(error => {
                 console.error('Error loading notes:', error);
@@ -141,12 +165,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     ${dateHTML}
                     ${sessionHTML}
                 </header>
-                <div class="note-content">
+                <div class="note-content" data-markdown="${escapeHTML(note.note)}">
                     ${marked.parse(note.note)}
                 </div>
                 <footer>
                     <button class="view-session-btn" data-session-id="${note.session_id}">
                         View Session
+                    </button>
+                    <button class="edit-fullpage-btn" data-note-id="${note.id}">
+                        Edit Note
                     </button>
                 </footer>
             `;
@@ -154,22 +181,98 @@ document.addEventListener('DOMContentLoaded', () => {
             notesContainer.appendChild(noteCard);
         });
         
-        // Add event listeners to view session buttons
+        // Add event listeners to buttons
+        setupNoteActionHandlers();
+    }
+    
+    // Set up handlers for note action buttons
+    function setupNoteActionHandlers() {
+        // View session buttons
         document.querySelectorAll('.view-session-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const sessionId = this.getAttribute('data-session-id');
                 window.location.href = `/history?session=${sessionId}`;
             });
         });
+        
+        // Edit note buttons
+        document.querySelectorAll('.edit-fullpage-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const noteId = this.getAttribute('data-note-id');
+                const noteCard = this.closest('.note-card');
+                const noteContent = noteCard.querySelector('.note-content').dataset.markdown;
+                
+                openFullPageEditor(noteContent, noteId);
+            });
+        });
     }
     
-    // Set up event listeners
-    if (searchInput) {
-        searchInput.addEventListener('input', debounce(applyFilters, 300));
+    // Open the full-page editor modal
+    function openFullPageEditor(content, noteId) {
+        if (!editorModal) {
+            console.error('Editor modal not found in the DOM');
+            return;
+        }
+        
+        // Initialize the editor with content
+        const titleElement = document.getElementById('editor-title');
+        if (titleElement) {
+            titleElement.textContent = `Editing Note #${noteId}`;
+        }
+        
+        initializeFullPageEditor(content, noteId);
+        editorModal.showModal();
     }
     
-    if (applyFiltersBtn) {
-        applyFiltersBtn.addEventListener('click', applyFilters);
+    // Close the full-page editor modal
+    function closeFullPageEditor() {
+        if (fullPageEditor) {
+            fullPageEditor.toTextArea();
+            fullPageEditor = null;
+        }
+        if (editorModal) {
+            editorModal.close();
+        }
+    }
+    
+    // Save the note from full-page editor
+    function saveFullPageNote() {
+        if (!fullPageEditor || !currentNoteId) return;
+        
+        const updatedContent = fullPageEditor.value();
+        updateNote(currentNoteId, updatedContent);
+    }
+    
+    // Update a note
+    function updateNote(noteId, noteText) {
+        fetch(`/api/notes/${noteId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: noteText })
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Note updated:', data);
+            closeFullPageEditor();
+            
+            // Reload notes to show updated content
+            loadAllNotes();
+        })
+        .catch(error => {
+            console.error('Error updating note:', error);
+            alert('Failed to update note. Please try again.');
+        });
+    }
+    
+    // Helper function to escape HTML
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
     
     // Debounce helper function
@@ -184,6 +287,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }, wait);
         };
     }
+    
+    // Set up event listeners
+    if (searchInput) {
+        searchInput.addEventListener('input', debounce(applyFilters, 300));
+    }
+    
+    if (applyFiltersBtn) {
+        applyFiltersBtn.addEventListener('click', applyFilters);
+    }
+    
+    // Full-page editor event listeners
+    document.addEventListener('click', event => {
+        if (event.target.id === 'editor-save-btn') {
+            saveFullPageNote();
+        }
+        
+        if (event.target.id === 'editor-cancel-btn' || event.target.id === 'editor-close') {
+            closeFullPageEditor();
+        }
+    });
     
     // Initialize
     initializeDateRange();

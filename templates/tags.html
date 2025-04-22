@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tags Management - Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <link rel="manifest" href="/static/manifest.json">
+    <!-- Add auth.js script -->
+    <script src="/static/auth.js"></script>
+    <script src="/static/theme.js"></script>
+</head>
+<body>
+    <nav class="container-fluid">
+        <ul>
+            <li><strong>Pomonotes</strong></li>
+        </ul>
+        <ul>
+            <li><a href="/">Timer</a></li>
+            <li><a href="/history">History</a></li>
+            <li><a href="/notes">Notes</a></li>
+            <li><a href="/activities">Activity</a></li>
+            <li><a href="/tags" class="active">Tags</a></li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <article>
+            <header>
+                <h1>Tags Management</h1>
+                <p>Create and manage your session tags</p>
+            </header>
+
+            <div class="create-tag-form">
+                <h3>Create New Tag</h3>
+                <div class="grid">
+                    <div>
+                        <label for="tag-name">Tag Name</label>
+                        <input type="text" id="tag-name" name="tag-name" placeholder="Enter tag name" required>
+                    </div>
+                    <div>
+                        <label for="tag-color">Tag Color</label>
+                        <input type="color" id="tag-color" name="tag-color" value="#3498db">
+                    </div>
+                    <div>
+                        <label>&nbsp;</label>
+                        <button id="create-tag-btn" class="primary">Create Tag</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tags-list-container">
+                <h3>Your Tags</h3>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tag</th>
+                                <th>Color</th>
+                                <th>Usage Count</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tags-list">
+                            <tr>
+                                <td colspan="4">Loading tags...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </article>
+        
+        <article class="tag-statistics">
+            <header>
+                <h2>Tag Usage Statistics</h2>
+                <div class="tag-filters">
+                    <label for="stats-year">Year:</label>
+                    <select id="stats-year">
+                        <option value="2023">2023</option>
+                        <option value="2024">2024</option>
+                        <option value="2025" selected>2025</option>
+                    </select>
+                </div>
+            </header>
+            
+            <div class="tag-charts">
+                <div class="monthly-chart-container">
+                    <h3>Monthly Minutes by Tag</h3>
+                    <canvas id="monthly-tag-chart"></canvas>
+                </div>
+                
+                <div class="tag-distribution-container">
+                    <h3>Overall Tag Distribution</h3>
+                    <canvas id="tag-distribution-chart"></canvas>
+                </div>
+            </div>
+        </article>
+    </main>
+    
+    <!-- Edit Tag Modal -->
+    <dialog id="edit-tag-modal">
+        <article>
+            <header>
+                <h3>Edit Tag</h3>
+                <a href="#close" aria-label="Close" class="close" id="close-edit-modal"></a>
+            </header>
+            <div class="edit-tag-form">
+                <input type="hidden" id="edit-tag-id">
+                <div class="grid">
+                    <div>
+                        <label for="edit-tag-name">Tag Name</label>
+                        <input type="text" id="edit-tag-name" name="edit-tag-name" placeholder="Enter tag name" required>
+                    </div>
+                    <div>
+                        <label for="edit-tag-color">Tag Color</label>
+                        <input type="color" id="edit-tag-color" name="edit-tag-color">
+                    </div>
+                </div>
+            </div>
+            <footer>
+                <button id="cancel-edit-btn" class="secondary">Cancel</button>
+                <button id="save-edit-btn" class="primary">Save Changes</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <!-- Confirmation Modal -->
+    <dialog id="confirm-modal">
+        <article>
+            <header>
+                <h3>Confirm Action</h3>
+            </header>
+            <p class="modal-message">Are you sure you want to perform this action?</p>
+            <footer>
+                <button class="cancel-btn secondary">Cancel</button>
+                <button class="confirm-btn">Confirm</button>
+            </footer>
+        </article>
+    </dialog>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tagsList = document.getElementById('tags-list');
+            const createTagBtn = document.getElementById('create-tag-btn');
+            const tagNameInput = document.getElementById('tag-name');
+            const tagColorInput = document.getElementById('tag-color');
+            const editTagModal = document.getElementById('edit-tag-modal');
+            const editTagId = document.getElementById('edit-tag-id');
+            const editTagName = document.getElementById('edit-tag-name');
+            const editTagColor = document.getElementById('edit-tag-color');
+            const saveEditBtn = document.getElementById('save-edit-btn');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            const closeEditModal = document.getElementById('close-edit-modal');
+            const confirmModal = document.getElementById('confirm-modal');
+            const statsYear = document.getElementById('stats-year');
+            
+            // Load tags on page load
+            loadTags();
+            
+            // Load tag statistics
+            loadTagStats();
+            
+            // Handle year selection change
+            if (statsYear) {
+                statsYear.addEventListener('change', loadTagStats);
+            }
+            
+            // Load all tags from the server
+            function loadTags() {
+                fetch('/api/tags')
+                    .then(response => response.json())
+                    .then(tags => {
+                        if (tags && tags.length > 0) {
+                            tagsList.innerHTML = '';
+                            
+                            tags.forEach(tag => {
+                                const row = document.createElement('tr');
+                                
+                                // Create tag preview
+                                const tagPreview = document.createElement('span');
+                                tagPreview.className = 'tag';
+                                tagPreview.textContent = tag.name;
+                                tagPreview.style.backgroundColor = tag.color;
+                                
+                                // Add tag cell
+                                const tagCell = document.createElement('td');
+                                tagCell.appendChild(tagPreview);
+                                row.appendChild(tagCell);
+                                
+                                // Add color swatch cell
+                                const colorCell = document.createElement('td');
+                                const colorSwatch = document.createElement('div');
+                                colorSwatch.className = 'color-swatch';
+                                colorSwatch.style.backgroundColor = tag.color;
+                                colorSwatch.setAttribute('title', tag.color);
+                                colorCell.appendChild(colorSwatch);
+                                row.appendChild(colorCell);
+                                
+                                // Add usage count cell
+                                const countCell = document.createElement('td');
+                                countCell.textContent = tag.usage_count || 0;
+                                row.appendChild(countCell);
+                                
+                                // Add actions cell
+                                const actionsCell = document.createElement('td');
+                                actionsCell.className = 'tag-actions';
+                                
+                                // Edit button
+                                const editBtn = document.createElement('button');
+                                editBtn.className = 'edit-tag';
+                                editBtn.textContent = 'Edit';
+                                editBtn.setAttribute('data-id', tag.id);
+                                editBtn.setAttribute('data-name', tag.name);
+                                editBtn.setAttribute('data-color', tag.color);
+                                
+                                // Delete button
+                                const deleteBtn = document.createElement('button');
+                                deleteBtn.className = 'delete-tag secondary';
+                                deleteBtn.textContent = 'Delete';
+                                deleteBtn.setAttribute('data-id', tag.id);
+                                deleteBtn.setAttribute('data-name', tag.name);
+                                
+                                actionsCell.appendChild(editBtn);
+                                actionsCell.appendChild(deleteBtn);
+                                row.appendChild(actionsCell);
+                                
+                                tagsList.appendChild(row);
+                            });
+                            
+                            // Set up event handlers for edit and delete buttons
+                            setupTagActions();
+                        } else {
+                            tagsList.innerHTML = '<tr><td colspan="4">No tags found. Create your first tag above.</td></tr>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading tags:', error);
+                        tagsList.innerHTML = '<tr><td colspan="4">Error loading tags. Please try again.</td></tr>';
+                    });
+            }
+            
+            // Set up handlers for tag actions (edit/delete)
+            function setupTagActions() {
+                // Edit buttons
+                document.querySelectorAll('.edit-tag').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const name = this.getAttribute('data-name');
+                        const color = this.getAttribute('data-color');
+                        
+                        // Set values in the edit form
+                        editTagId.value = id;
+                        editTagName.value = name;
+                        editTagColor.value = color;
+                        
+                        // Show the modal
+                        editTagModal.showModal();
+                    });
+                });
+                
+                // Delete buttons
+                document.querySelectorAll('.delete-tag').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const id = this.getAttribute('data-id');
+                        const name = this.getAttribute('data-name');
+                        
+                        // Show confirmation dialog
+                        confirmModal.querySelector('.modal-message').textContent = 
+                            `Are you sure you want to delete the tag "${name}"? This will remove the tag from all sessions.`;
+                        
+                        // Set up confirm button action
+                        const confirmBtn = confirmModal.querySelector('.confirm-btn');
+                        confirmBtn.onclick = function() {
+                            deleteTag(id);
+                            confirmModal.close();
+                        };
+                        
+                        // Set up cancel button action
+                        const cancelBtn = confirmModal.querySelector('.cancel-btn');
+                        cancelBtn.onclick = function() {
+                            confirmModal.close();
+                        };
+                        
+                        confirmModal.showModal();
+                    });
+                });
+            }
+            
+            // Create a new tag
+            function createTag() {
+                const name = tagNameInput.value.trim();
+                const color = tagColorInput.value;
+                
+                if (!name) {
+                    alert('Please enter a tag name');
+                    return;
+                }
+                
+                fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        color
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Tag created:', data);
+                    
+                    // Clear inputs
+                    tagNameInput.value = '';
+                    
+                    // Reload tags
+                    loadTags();
+                    
+                    // Reload statistics
+                    loadTagStats();
+                })
+                .catch(error => {
+                    console.error('Error creating tag:', error);
+                    alert('Error creating tag. Please try again.');
+                });
+            }
+            
+            // Update a tag
+            function updateTag() {
+                const id = editTagId.value;
+                const name = editTagName.value.trim();
+                const color = editTagColor.value;
+                
+                if (!name) {
+                    alert('Please enter a tag name');
+                    return;
+                }
+                
+                fetch(`/api/tags/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        color
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Tag updated:', data);
+                    
+                    // Close the modal
+                    editTagModal.close();
+                    
+                    // Reload tags
+                    loadTags();
+                    
+                    // Reload statistics
+                    loadTagStats();
+                })
+                .catch(error => {
+                    console.error('Error updating tag:', error);
+                    alert('Error updating tag. Please try again.');
+                });
+            }
+            
+            // Delete a tag
+            function deleteTag(id) {
+                fetch(`/api/tags/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Tag deleted:', data);
+                    
+                    // Reload tags
+                    loadTags();
+                    
+                    // Reload statistics
+                    loadTagStats();
+                })
+                .catch(error => {
+                    console.error('Error deleting tag:', error);
+                    alert('Error deleting tag. Please try again.');
+                });
+            }
+            
+            // Load tag statistics
+            function loadTagStats() {
+                const year = statsYear ? statsYear.value : new Date().getFullYear();
+                
+                fetch(`/api/stats/monthly-tags?year=${year}`)
+                    .then(response => response.json())
+                    .then(stats => {
+                        // Render monthly tag chart
+                        renderMonthlyTagChart(stats);
+                        
+                        // Render tag distribution chart
+                        renderTagDistributionChart(stats);
+                    })
+                    .catch(error => {
+                        console.error('Error loading tag stats:', error);
+                    });
+            }
+            
+            // Render monthly tag chart
+            function renderMonthlyTagChart(stats) {
+                const chartCanvas = document.getElementById('monthly-tag-chart');
+                if (!chartCanvas) return;
+                
+                // Prepare data for chart
+                const months = Object.keys(stats);
+                
+                // Get all unique tags across all months
+                const allTags = new Set();
+                months.forEach(month => {
+                    Object.keys(stats[month]).forEach(tag => allTags.add(tag));
+                });
+                
+                // Convert to array and sort
+                const tags = Array.from(allTags).sort();
+                
+                // Create datasets for each tag
+                const datasets = tags.map((tag, index) => {
+                    // Generate a color based on index
+                    const hue = (index * 137) % 360; // Golden angle approximation for color distribution
+                    const color = `hsl(${hue}, 70%, 60%)`;
+                    
+                    // Get data for each month
+                    const data = months.map(month => stats[month][tag] || 0);
+                    
+                    return {
+                        label: tag,
+                        data: data,
+                        backgroundColor: color,
+                        borderColor: color,
+                        borderWidth: 1
+                    };
+                });
+                
+                // Create the chart
+                const ctx = chartCanvas.getContext('2d');
+                
+                // If chart already exists, destroy it
+                if (window.monthlyTagChart) {
+                    window.monthlyTagChart.destroy();
+                }
+                
+                window.monthlyTagChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: months,
+                        datasets: datasets
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                stacked: true
+                            },
+                            y: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: 'Minutes'
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            },
+                            title: {
+                                display: true,
+                                text: `Monthly Minutes by Tag (${statsYear.value})`
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Render tag distribution chart
+            function renderTagDistributionChart(stats) {
+                const chartCanvas = document.getElementById('tag-distribution-chart');
+                if (!chartCanvas) return;
+                
+                // Calculate total minutes for each tag across all months
+                const tagTotals = {};
+                
+                Object.values(stats).forEach(monthData => {
+                    Object.entries(monthData).forEach(([tag, minutes]) => {
+                        if (!tagTotals[tag]) {
+                            tagTotals[tag] = 0;
+                        }
+                        tagTotals[tag] += minutes;
+                    });
+                });
+                
+                // Sort by total minutes (descending)
+                const sortedTags = Object.entries(tagTotals).sort((a, b) => b[1] - a[1]);
+                
+                // Prepare data for chart
+                const labels = sortedTags.map(([tag]) => tag);
+                const data = sortedTags.map(([, minutes]) => minutes);
+                
+                // Create colors for each tag
+                const colors = labels.map((_, index) => {
+                    const hue = (index * 137) % 360;
+                    return `hsl(${hue}, 70%, 60%)`;
+                });
+                
+                // Create the chart
+                const ctx = chartCanvas.getContext('2d');
+                
+                // If chart already exists, destroy it
+                if (window.tagDistributionChart) {
+                    window.tagDistributionChart.destroy();
+                }
+                
+                window.tagDistributionChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: colors,
+                            borderColor: 'rgba(255, 255, 255, 0.5)',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right'
+                            },
+                            title: {
+                                display: true,
+                                text: `Total Minutes by Tag (${statsYear.value})`
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                        const percentage = Math.round((value / total) * 100);
+                                        return `${label}: ${value} minutes (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+            
+            // Event listeners
+            if (createTagBtn) {
+                createTagBtn.addEventListener('click', createTag);
+            }
+            
+            if (saveEditBtn) {
+                saveEditBtn.addEventListener('click', updateTag);
+            }
+            
+            if (cancelEditBtn) {
+                cancelEditBtn.addEventListener('click', () => {
+                    editTagModal.close();
+                });
+            }
+            
+            if (closeEditModal) {
+                closeEditModal.addEventListener('click', () => {
+                    editTagModal.close();
+                });
+            }
+            
+            // Also allow for enter key on tag name input
+            if (tagNameInput) {
+                tagNameInput.addEventListener('keydown', function(event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        createTag();
+                    }
+                });
+            }
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

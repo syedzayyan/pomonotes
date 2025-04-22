@@ -175,7 +175,142 @@ article header {
 .heatmap-section header {
     margin-bottom: 0.5rem;
 }
+/* Tag section in timer */
+.tags-section {
+    width: 100%;
+    max-width: 400px;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--form-element-border-color);
+}
 
+.tags-section h4 {
+    margin-bottom: 0.5rem;
+    text-align: center;
+}
+
+.tag-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    min-height: 2rem;
+    padding: 0.5rem;
+    border-radius: var(--border-radius);
+    background-color: var(--card-section-bg);
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    border-radius: 1rem;
+    background-color: var(--pomodoro-blue);
+    color: white;
+    font-size: 0.85rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.tag-remove {
+    margin-left: 0.5rem;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.tag-remove:hover {
+    opacity: 1;
+}
+
+.tag-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.tag-selector select {
+    width: 100%;
+}
+
+.new-tag-input {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.new-tag-input input {
+    flex: 1;
+}
+
+.new-tag-input button {
+    padding: 0.25rem 0.75rem;
+}
+
+/* Color swatch for tag management */
+.color-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 1px solid var(--form-element-border-color);
+}
+
+/* Tag actions in tag management */
+.tag-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tag-actions button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+/* Create tag form */
+.create-tag-form {
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--form-element-border-color);
+}
+
+/* Tag statistics */
+.tag-statistics {
+    margin-top: 2rem;
+}
+
+.tag-filters {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.tag-charts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+    margin-top: 1rem;
+}
+
+@media (min-width: 992px) {
+    .tag-charts {
+        grid-template-columns: 3fr 2fr;
+    }
+}
+
+.monthly-chart-container,
+.tag-distribution-container {
+    height: 400px;
+    position: relative;
+}
+
+.monthly-chart-container canvas,
+.tag-distribution-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
 /* Headings */
 h1 {
     font-size: 1.75rem;

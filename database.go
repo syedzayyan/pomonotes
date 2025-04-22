@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -10,12 +11,13 @@ var db *sql.DB
 
 // Data structures
 type Session struct {
-	ID          int    `json:"id"`
-	StartTime   string `json:"start_time"`
+	ID          int     `json:"id"`
+	StartTime   string  `json:"start_time"`
 	EndTime     *string `json:"end_time"`
-	TotalTime   int    `json:"total_time"`
-	Status      string `json:"status"`
-	Completed   int    `json:"completed_pomodoros"`
+	TotalTime   int     `json:"total_time"`
+	Status      string  `json:"status"`
+	Completed   int     `json:"completed_pomodoros"`
+	Tags        string  `json:"tags"` // Comma-separated tag list
 }
 
 type Pomodoro struct {
@@ -47,99 +49,229 @@ type Note struct {
 	CreatedAt   string `json:"created_at"`
 }
 
+type Tag struct {
+	ID       int    `json:"id"`
+	Name     string `json:"name"`
+	Color    string `json:"color"`
+	UsageCount int  `json:"usage_count"`
+}
+
 // Initialize the database with tables if not already created
 func initDB() {
-	var err error
-	// Open database connection
-	db, err = sql.Open("sqlite3", "./pomonotes.db")
-	if err != nil {
-		fmt.Println("Error opening database:", err)
-		return
-	}
+    var err error
+    // Open database connection
+    db, err = sql.Open("sqlite3", "./pomonotes.db")
+    if err != nil {
+        fmt.Println("Error opening database:", err)
+        return
+    }
 
-	// Create tables if they don't exist
-	createSessionsTable := `
-	CREATE TABLE IF NOT EXISTS sessions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		start_time TEXT,
-		end_time TEXT,
-		total_time INTEGER DEFAULT 0,
-		status TEXT,
-		completed_pomodoros INTEGER DEFAULT 0
-	);`
+    // Enable foreign keys
+    _, err = db.Exec("PRAGMA foreign_keys = ON")
+    if err != nil {
+        fmt.Println("Error enabling foreign keys:", err)
+    }
 
-	createPomodorosTable := `
-	CREATE TABLE IF NOT EXISTS pomodoros (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		session_id INTEGER,
-		number INTEGER,
-		start_time TEXT,
-		end_time TEXT,
-		duration INTEGER,
-		status TEXT,
-		FOREIGN KEY (session_id) REFERENCES sessions(id)
-	);`
+    // Create tables with initial schema
+    createInitialSchema()
+    
+    // Run migrations to add any new columns
+    migrateSchema()
+    
+    fmt.Println("Database initialization and migration complete")
+}
 
-	createBreaksTable := `
-	CREATE TABLE IF NOT EXISTS breaks (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		session_id INTEGER,
-		pomodoro_id INTEGER,
-		type TEXT,
-		start_time TEXT,
-		end_time TEXT,
-		duration INTEGER,
-		status TEXT,
-		FOREIGN KEY (session_id) REFERENCES sessions(id),
-		FOREIGN KEY (pomodoro_id) REFERENCES pomodoros(id)
-	);`
+// Initial schema creation
+func createInitialSchema() {
+    tableQueries := map[string]string{
+        "sessions": `
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                start_time TEXT,
+                end_time TEXT,
+                total_time INTEGER DEFAULT 0,
+                status TEXT,
+                completed_pomodoros INTEGER DEFAULT 0,
+                tags TEXT
+            )
+        `,
+        "pomodoros": `
+            CREATE TABLE IF NOT EXISTS pomodoros (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                number INTEGER,
+                start_time TEXT,
+                end_time TEXT,
+                duration INTEGER,
+                status TEXT,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+            )
+        `,
+        "breaks": `
+            CREATE TABLE IF NOT EXISTS breaks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                pomodoro_id INTEGER,
+                type TEXT,
+                start_time TEXT,
+                end_time TEXT,
+                duration INTEGER,
+                status TEXT,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (pomodoro_id) REFERENCES pomodoros(id) ON DELETE CASCADE
+            )
+        `,
+        "notes": `
+            CREATE TABLE IF NOT EXISTS notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER,
+                pomodoro_id INTEGER,
+                note TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (pomodoro_id) REFERENCES pomodoros(id) ON DELETE CASCADE
+            )
+        `,
+        "tags": `
+            CREATE TABLE IF NOT EXISTS tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT UNIQUE,
+                color TEXT,
+                usage_count INTEGER DEFAULT 0
+            )
+        `,
+    }
+    
+    // Execute each table creation query
+    for tableName, query := range tableQueries {
+        _, err := db.Exec(query)
+        if err != nil {
+            fmt.Printf("Error creating %s table: %v\n", tableName, err)
+        }
+    }
+}
 
-	createNotesTable := `
-	CREATE TABLE IF NOT EXISTS notes (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		session_id INTEGER,
-		pomodoro_id INTEGER,
-		note TEXT,
-		created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (session_id) REFERENCES sessions(id),
-		FOREIGN KEY (pomodoro_id) REFERENCES pomodoros(id)
-	);`
+// Define and run migrations
+func migrateSchema() {
+    // List of migrations to run
+    // Each migration is a struct with:
+    // - table: the table to modify
+    // - check: SQL to check if migration is needed
+    // - migration: SQL to run the migration
+    // - description: human-readable description
+    migrations := []struct {
+        table       string
+        check       string
+        migration   string
+        description string
+    }{
+        {
+            table:       "sessions",
+            check:       "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='tags'",
+            migration:   "ALTER TABLE sessions ADD COLUMN tags TEXT",
+            description: "Add tags column to sessions table",
+        },
+        {
+            table:       "pomodoros",
+            check:       "SELECT COUNT(*) FROM pragma_table_info('pomodoros') WHERE name='notes'",
+            migration:   "ALTER TABLE pomodoros ADD COLUMN notes TEXT",
+            description: "Add notes column to pomodoros table",
+        },
+        // Example of another potential migration
+        {
+            table:       "sessions",
+            check:       "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='project_id'",
+            migration:   "ALTER TABLE sessions ADD COLUMN project_id INTEGER DEFAULT NULL",
+            description: "Add project_id column to sessions table",
+        },
+        // Add future migrations here as needed
+    }
 
-	// Execute the queries to create tables
-	if _, err := db.Exec(createSessionsTable); err != nil {
-		fmt.Println("Error creating sessions table:", err)
-		return
-	}
-	if _, err := db.Exec(createPomodorosTable); err != nil {
-		fmt.Println("Error creating pomodoros table:", err)
-		return
-	}
-	if _, err := db.Exec(createBreaksTable); err != nil {
-		fmt.Println("Error creating breaks table:", err)
-		return
-	}
-	if _, err := db.Exec(createNotesTable); err != nil {
-		fmt.Println("Error creating notes table:", err)
-		return
-	}
+    // Run each migration if needed
+    for _, m := range migrations {
+        var count int
+        row := db.QueryRow(m.check)
+        err := row.Scan(&count)
+        if err != nil {
+            fmt.Printf("Error checking migration for %s (%s): %v\n", 
+                m.table, m.description, err)
+            continue
+        }
+
+        if count == 0 {
+            // Column doesn't exist, apply migration
+            _, err = db.Exec(m.migration)
+            if err != nil {
+                fmt.Printf("Error applying migration to %s (%s): %v\n", 
+                    m.table, m.description, err)
+            } else {
+                fmt.Printf("Migration applied: %s\n", m.description)
+            }
+        }
+    }
+}
+
+// Add table statistics function for database health checks
+func getDatabaseStats() map[string]int {
+    tables := []string{"sessions", "pomodoros", "breaks", "notes", "tags"}
+    stats := make(map[string]int)
+    
+    for _, table := range tables {
+        var count int
+        query := fmt.Sprintf("SELECT COUNT(*) FROM %s", table)
+        err := db.QueryRow(query).Scan(&count)
+        if err != nil {
+            fmt.Printf("Error getting count for %s: %v\n", table, err)
+            stats[table] = -1 // Indicate error
+        } else {
+            stats[table] = count
+        }
+    }
+    
+    return stats
+}
+
+// Add function to check database integrity
+func checkDatabaseIntegrity() (bool, error) {
+    rows, err := db.Query("PRAGMA integrity_check")
+    if err != nil {
+        return false, err
+    }
+    defer rows.Close()
+    
+    if rows.Next() {
+        var result string
+        if err := rows.Scan(&result); err != nil {
+            return false, err
+        }
+        return result == "ok", nil
+    }
+    
+    return false, fmt.Errorf("no result from integrity check")
 }
 
 // Session CRUD functions
 
-func createSession(startTime string) (int64, error) {
-	statement, err := db.Prepare("INSERT INTO sessions(start_time, status, completed_pomodoros) VALUES (?, ?, ?)")
+func createSession(startTime string, tags string) (int64, error) {
+	statement, err := db.Prepare("INSERT INTO sessions(start_time, status, completed_pomodoros, tags) VALUES (?, ?, ?, ?)")
 	if err != nil {
 		return 0, err
 	}
-	result, err := statement.Exec(startTime, "running", 0)
+	result, err := statement.Exec(startTime, "running", 0, tags)
 	if err != nil {
 		return 0, err
 	}
+	
+	// Update tag usage counts
+	if tags != "" {
+		updateTagCounts(tags)
+	}
+	
 	return result.LastInsertId()
 }
 
 func getSessions() ([]Session, error) {
-	rows, err := db.Query("SELECT id, start_time, end_time, total_time, status, completed_pomodoros FROM sessions ORDER BY id DESC")
+	rows, err := db.Query("SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags FROM sessions ORDER BY id DESC")
 	if err != nil {
 		return nil, err
 	}
@@ -148,25 +280,60 @@ func getSessions() ([]Session, error) {
 	var sessions []Session
 	for rows.Next() {
 		var session Session
-		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed)
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		// Scan using the nullable type for tags
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
 		if err != nil {
 			return nil, err
 		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
 		sessions = append(sessions, session)
 	}
 	return sessions, nil
 }
+
 func getSession(id int) (Session, error) {
-    row := db.QueryRow("SELECT id, start_time, end_time, total_time, status, completed_pomodoros FROM sessions WHERE id = ?", id)
+    row := db.QueryRow("SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags FROM sessions WHERE id = ?", id)
     var session Session
-    err := row.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed)
+    var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+    err := row.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
     if err != nil {
         return session, err
     }
+
+    // Set tags to empty string if NULL or the actual value if not NULL
+    if tagsNullable.Valid {
+        session.Tags = tagsNullable.String
+    } else {
+        session.Tags = ""
+    }
+
     return session, nil
 }
-func updateSession(id int, endTime *string, totalTime int, status string, completedPomodoros int) error {
-    statement, err := db.Prepare("UPDATE sessions SET end_time = ?, total_time = ?, status = ?, completed_pomodoros = ? WHERE id = ?")
+func updateSession(id int, endTime *string, totalTime int, status string, completedPomodoros int, tags string) error {
+    // If tags are updated, update the tag usage counts
+    if tags != "" {
+        // Get the current tags to see what changed
+        currentSession, err := getSession(id)
+        if err == nil && currentSession.Tags != tags {
+            // Decrement old tags and increment new ones
+            if currentSession.Tags != "" {
+                decrementTagCounts(currentSession.Tags)
+            }
+            updateTagCounts(tags)
+        }
+    }
+    
+    statement, err := db.Prepare("UPDATE sessions SET end_time = ?, total_time = ?, status = ?, completed_pomodoros = ?, tags = ? WHERE id = ?")
     if err != nil {
         return err
     }
@@ -177,31 +344,271 @@ func updateSession(id int, endTime *string, totalTime int, status string, comple
         endTimeValue = *endTime
     }
     
-    _, err = statement.Exec(endTimeValue, totalTime, status, completedPomodoros, id)
+    _, err = statement.Exec(endTimeValue, totalTime, status, completedPomodoros, tags, id)
     return err
 }
+
+// Enhanced function to update session tags
+func updateSessionTags(sessionID int, newTags string) error {
+    // Begin transaction
+    tx, err := db.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %w", err)
+    }
+    
+    defer func() {
+        if err != nil {
+            tx.Rollback()
+        }
+    }()
+    
+    // Get current tags
+    var currentTags string
+    err = tx.QueryRow("SELECT tags FROM sessions WHERE id = ?", sessionID).Scan(&currentTags)
+    if err != nil {
+        return fmt.Errorf("failed to get current tags: %w", err)
+    }
+    
+    // Only update if tags have changed
+    if currentTags != newTags {
+        // Decrement old tags
+        if currentTags != "" {
+            decrementTagCounts(currentTags)
+        }
+        
+        // Increment new tags
+        if newTags != "" {
+            updateTagCounts(newTags)
+        }
+        
+        // Update the session
+        _, err = tx.Exec("UPDATE sessions SET tags = ? WHERE id = ?", newTags, sessionID)
+        if err != nil {
+            return fmt.Errorf("failed to update session tags: %w", err)
+        }
+    }
+    
+    // Commit transaction
+    if err = tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %w", err)
+    }
+    
+    return nil
+}
+
+// Delete session and all related data (improved with transaction support)
 func deleteSession(id int) error {
-	// First delete related breaks
-	_, err := db.Exec("DELETE FROM breaks WHERE session_id = ?", id)
+    // Get session to decrement tag counts before deletion
+    session, err := getSession(id)
+    if err != nil {
+        // If we can't get the session, it might not exist
+        return fmt.Errorf("session not found: %w", err)
+    }
+
+    // Begin a transaction
+    tx, err := db.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %w", err)
+    }
+    
+    // Use defer with a named error return to handle rollback/commit
+    defer func() {
+        if err != nil {
+            tx.Rollback()
+        }
+    }()
+
+    // Decrement tag counts if applicable
+    if session.Tags != "" {
+        decrementTagCounts(session.Tags)
+    }
+    
+    // Delete all related data within the transaction
+    deleteQueries := []struct {
+        query string
+        description string
+    }{
+        {"DELETE FROM breaks WHERE session_id = ?", "breaks"},
+        {"DELETE FROM pomodoros WHERE session_id = ?", "pomodoros"},
+        {"DELETE FROM notes WHERE session_id = ?", "notes"},
+        {"DELETE FROM sessions WHERE id = ?", "session"},
+    }
+    
+    for _, dq := range deleteQueries {
+        _, err = tx.Exec(dq.query, id)
+        if err != nil {
+            return fmt.Errorf("failed to delete %s: %w", dq.description, err)
+        }
+    }
+    
+    // Commit the transaction
+    if err = tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %w", err)
+    }
+    
+    return nil
+}
+
+// Tag CRUD functions
+
+func createTag(name string, color string) (int64, error) {
+	statement, err := db.Prepare("INSERT INTO tags(name, color, usage_count) VALUES (?, ?, ?)")
+	if err != nil {
+		return 0, err
+	}
+	result, err := statement.Exec(name, color, 0)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+func getTags() ([]Tag, error) {
+	rows, err := db.Query("SELECT id, name, color, usage_count FROM tags ORDER BY name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tags []Tag
+	for rows.Next() {
+		var tag Tag
+		err := rows.Scan(&tag.ID, &tag.Name, &tag.Color, &tag.UsageCount)
+		if err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
+func updateTag(id int, name string, color string) error {
+	statement, err := db.Prepare("UPDATE tags SET name = ?, color = ? WHERE id = ?")
 	if err != nil {
 		return err
 	}
-	
-	// Delete related pomodoros
-	_, err = db.Exec("DELETE FROM pomodoros WHERE session_id = ?", id)
-	if err != nil {
-		return err
-	}
-	
-	// Delete related notes
-	_, err = db.Exec("DELETE FROM notes WHERE session_id = ?", id)
-	if err != nil {
-		return err
-	}
-	
-	// Then delete the session
-	_, err = db.Exec("DELETE FROM sessions WHERE id = ?", id)
+	_, err = statement.Exec(name, color, id)
 	return err
+}
+
+func deleteTag(id int) error {
+	// Get tag name before deletion
+	row := db.QueryRow("SELECT name FROM tags WHERE id = ?", id)
+	var tagName string
+	err := row.Scan(&tagName)
+	if err != nil {
+		return err
+	}
+	
+	// Remove this tag from all sessions that have it
+	rows, err := db.Query("SELECT id, tags FROM sessions WHERE tags LIKE ?", "%"+tagName+"%")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	
+	for rows.Next() {
+		var sessionId int
+		var sessionTags string
+		err := rows.Scan(&sessionId, &sessionTags)
+		if err != nil {
+			continue
+		}
+		
+		// Remove the tag from the comma-separated list
+		tagList := strings.Split(sessionTags, ",")
+		newTagList := []string{}
+		for _, tag := range tagList {
+			tag = strings.TrimSpace(tag)
+			if tag != tagName {
+				newTagList = append(newTagList, tag)
+			}
+		}
+		
+		// Update the session with the new tag list
+		newTags := strings.Join(newTagList, ",")
+		db.Exec("UPDATE sessions SET tags = ? WHERE id = ?", newTags, sessionId)
+	}
+	
+	// Delete the tag
+	_, err = db.Exec("DELETE FROM tags WHERE id = ?", id)
+	return err
+}
+
+// Helper functions for tag management
+
+func updateTagCounts(tagString string) {
+	if tagString == "" {
+		return
+	}
+	
+	tagList := strings.Split(tagString, ",")
+	for _, tag := range tagList {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		
+		// Check if tag exists
+		var count int
+		row := db.QueryRow("SELECT COUNT(*) FROM tags WHERE name = ?", tag)
+		err := row.Scan(&count)
+		if err != nil {
+			continue
+		}
+		
+		if count > 0 {
+			// Increment usage count for existing tag
+			db.Exec("UPDATE tags SET usage_count = usage_count + 1 WHERE name = ?", tag)
+		} else {
+			// Create new tag with default color
+			createTag(tag, getRandomColor())
+		}
+	}
+}
+
+func decrementTagCounts(tagString string) {
+	if tagString == "" {
+		return
+	}
+	
+	tagList := strings.Split(tagString, ",")
+	for _, tag := range tagList {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		
+		// Decrement usage count
+		db.Exec("UPDATE tags SET usage_count = MAX(0, usage_count - 1) WHERE name = ?", tag)
+	}
+}
+
+func getRandomColor() string {
+	// Generate a random color from a predefined list
+	colors := []string{
+		"#3498db", // Blue
+		"#2ecc71", // Green
+		"#e74c3c", // Red
+		"#f39c12", // Orange
+		"#9b59b6", // Purple
+		"#1abc9c", // Teal
+		"#d35400", // Dark Orange
+		"#34495e", // Dark Blue
+		"#16a085", // Light Green
+		"#c0392b", // Burgundy
+	}
+	
+	// Get count of tags to use as index
+	var count int
+	row := db.QueryRow("SELECT COUNT(*) FROM tags")
+	err := row.Scan(&count)
+	if err != nil {
+		return colors[0]
+	}
+	
+	index := count % len(colors)
+	return colors[index]
 }
 
 // Pomodoro CRUD functions
@@ -355,4 +762,153 @@ func getAllNotes() ([]Note, error) {
 		notes = append(notes, note)
 	}
 	return notes, nil
+}
+
+// Get sessions by date range
+func getSessionsByDateRange(startDate string, endDate string) ([]Session, error) {
+	query := `
+		SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags 
+		FROM sessions 
+		WHERE start_time >= ? AND start_time <= ? 
+		ORDER BY start_time
+	`
+	rows, err := db.Query(query, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+// Get sessions by tag
+
+func getSessionsByTag(tag string) ([]Session, error) {
+	// Using LIKE with wildcards to match tag in the comma-separated list
+	query := `
+		SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags 
+		FROM sessions 
+		WHERE tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?
+		ORDER BY start_time DESC
+	`
+	// Four patterns to match: exact match, start of list, end of list, or middle of list
+	rows, err := db.Query(query, tag, tag+",%", "%,"+tag, "%,"+tag+",%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+// Get monthly stats for each tag
+func getMonthlyTagStats(year int) (map[string]map[string]int, error) {
+	// Final structure will be: { "month": { "tag1": minutes, "tag2": minutes } }
+	stats := make(map[string]map[string]int)
+	
+	// Initialize months
+	months := []string{"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"}
+	for _, month := range months {
+		stats[month] = make(map[string]int)
+	}
+	
+	// Query sessions for the given year
+	query := `
+		SELECT start_time, total_time, tags 
+		FROM sessions 
+		WHERE strftime('%Y', start_time) = ? 
+		AND status IN ('completed', 'stopped') 
+		AND total_time > 0
+		ORDER BY start_time
+	`
+	rows, err := db.Query(query, fmt.Sprintf("%d", year))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	
+	for rows.Next() {
+		var startTime string
+		var totalTime int
+		var tags string
+		
+		err := rows.Scan(&startTime, &totalTime, &tags)
+		if err != nil {
+			continue
+		}
+		
+		// Extract month from start_time (format: 2023-01-15T14:30:00)
+		// SQLite strftime returns 01-12 for months
+		var monthIndex int
+		row := db.QueryRow("SELECT strftime('%m', ?)", startTime)
+		err = row.Scan(&monthIndex)
+		if err != nil {
+			continue
+		}
+		
+		monthName := months[monthIndex-1] // Convert 1-12 to 0-11 for array index
+		minutes := totalTime / 60 // Convert seconds to minutes
+		
+		if tags == "" {
+			// Use "Untagged" for sessions without tags
+			if _, ok := stats[monthName]["Untagged"]; !ok {
+				stats[monthName]["Untagged"] = 0
+			}
+			stats[monthName]["Untagged"] += minutes
+		} else {
+			// Split tags and distribute minutes proportionally
+			tagList := strings.Split(tags, ",")
+			minutesPerTag := minutes / len(tagList)
+			
+			for _, tag := range tagList {
+				tag = strings.TrimSpace(tag)
+				if tag == "" {
+					continue
+				}
+				
+				if _, ok := stats[monthName][tag]; !ok {
+					stats[monthName][tag] = 0
+				}
+				stats[monthName][tag] += minutesPerTag
+			}
+		}
+	}
+	
+	return stats, nil
 }

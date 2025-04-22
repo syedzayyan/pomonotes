@@ -6,10 +6,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const sessionNotesList = document.getElementById('session-notes-list');
     const addNoteTextarea = document.getElementById('add-note-textarea');
     const addNoteBtn = document.getElementById('add-note-btn');
+    const editorModal = document.getElementById('editor-modal');
     
     let currentSessionId = null;
+    let currentNoteId = null;
     let addNoteEditor = null;
     let editNoteEditor = null;
+    let fullPageEditor = null;
+    
+    // Check URL for session parameter to open specific session
+    function checkUrlForSession() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        if (sessionId) {
+            openSessionDetails(sessionId);
+        }
+    }
     
     // Load sessions on page load
     loadSessions();
@@ -30,6 +42,34 @@ document.addEventListener('DOMContentLoaded', () => {
                 ]
             });
         }
+    }
+    
+    // Initialize full page editor
+    function initializeFullPageEditor(noteContent, noteId) {
+        const editorTextarea = document.getElementById('fullpage-editor-textarea');
+        if (!editorTextarea) return;
+        
+        if (fullPageEditor) {
+            fullPageEditor.toTextArea();
+            fullPageEditor = null;
+        }
+        
+        editorTextarea.value = noteContent;
+        
+        fullPageEditor = new SimpleMDE({
+            element: editorTextarea,
+            spellChecker: false,
+            autofocus: true,
+            toolbar: [
+                'bold', 'italic', 'heading', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', 'image', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ]
+        });
+        
+        currentNoteId = noteId;
     }
     
     // Load sessions data using fetch
@@ -90,6 +130,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     
                     setupSessionClickHandlers();
+                    // Check if we should open a specific session
+                    checkUrlForSession();
                 } else {
                     sessionsTableBody.innerHTML = '<tr><td colspan="6">No sessions found.</td></tr>';
                 }
@@ -128,6 +170,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // Open session details modal
     function openSessionDetails(sessionId) {
         currentSessionId = sessionId;
+        
+        // Update URL with session ID without reloading
+        const url = new URL(window.location);
+        url.searchParams.set('session', sessionId);
+        window.history.pushState({}, '', url);
         
         // Fetch session details
         fetch(`/api/sessions/${sessionId}`)
@@ -195,6 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="note-content" data-markdown="${escapeHTML(note.note)}">${marked.parse(note.note)}</div>
                             <div class="note-actions">
                                 <button class="edit-note" data-note-id="${note.id}">Edit</button>
+                                <button class="edit-fullpage" data-note-id="${note.id}">Full Page Edit</button>
                                 <button class="delete-note" data-note-id="${note.id}">Delete</button>
                             </div>
                         `;
@@ -277,6 +325,21 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
+        // Full Page Edit buttons
+        document.querySelectorAll('.edit-fullpage').forEach(button => {
+            button.addEventListener('click', function() {
+                const noteId = this.getAttribute('data-note-id');
+                const noteItem = this.closest('.note-item');
+                
+                // Get the raw markdown content
+                const markdownContent = noteItem.querySelector('.note-content').dataset.markdown || 
+                                       noteItem.querySelector('.note-content').textContent;
+                
+                // Open the editor modal
+                openFullPageEditor(markdownContent, noteId);
+            });
+        });
+        
         // Delete note buttons
         document.querySelectorAll('.delete-note').forEach(button => {
             button.addEventListener('click', function() {
@@ -289,8 +352,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // Open the full-page editor modal
+    function openFullPageEditor(content, noteId) {
+        if (!editorModal) {
+            console.error('Editor modal not found in the DOM');
+            return;
+        }
+        
+        // Initialize the editor with content
+        const titleElement = document.getElementById('editor-title');
+        if (titleElement) {
+            titleElement.textContent = `Editing Note for Session #${currentSessionId}`;
+        }
+        
+        initializeFullPageEditor(content, noteId);
+        editorModal.showModal();
+    }
+    
+    // Close the full-page editor modal
+    function closeFullPageEditor() {
+        if (fullPageEditor) {
+            fullPageEditor.toTextArea();
+            fullPageEditor = null;
+        }
+        if (editorModal) {
+            editorModal.close();
+        }
+    }
+    
+    // Save the note from full-page editor
+    function saveFullPageNote() {
+        if (!fullPageEditor || !currentNoteId) return;
+        
+        const updatedContent = fullPageEditor.value();
+        updateNote(currentNoteId, updatedContent, true);
+    }
+    
     // Update a note
-    function updateNote(noteId, noteText) {
+    function updateNote(noteId, noteText, closeEditorAfterSave = false) {
         fetch(`/api/notes/${noteId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -299,6 +398,11 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             console.log('Note updated:', data);
+            
+            if (closeEditorAfterSave) {
+                closeFullPageEditor();
+            }
+            
             loadSessionNotes(currentSessionId);
         })
         .catch(error => {
@@ -331,8 +435,19 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => response.json())
         .then(data => {
             console.log('Session deleted:', data);
+            
+            // If the current modal session is being deleted, close it
+            if (sessionId === currentSessionId && sessionModal.open) {
+                sessionModal.close();
+            }
+            
             // Refresh the sessions list
             loadSessions();
+            
+            // Clear session parameter from URL
+            const url = new URL(window.location);
+            url.searchParams.delete('session');
+            window.history.pushState({}, '', url);
         })
         .catch(error => {
             console.error('Error deleting session:', error);
@@ -421,10 +536,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 editNoteEditor = null;
             }
             sessionModal.close();
+            
+            // Clear session parameter from URL
+            const url = new URL(window.location);
+            url.searchParams.delete('session');
+            window.history.pushState({}, '', url);
         });
     }
     
     if (addNoteBtn) {
         addNoteBtn.addEventListener('click', addNote);
     }
+    
+    // Full-page editor event listeners
+    document.addEventListener('click', event => {
+        if (event.target.id === 'editor-save-btn') {
+            saveFullPageNote();
+        }
+        
+        if (event.target.id === 'editor-cancel-btn' || event.target.id === 'editor-close') {
+            closeFullPageEditor();
+        }
+    });
+    
+    // Handle back button navigation
+    window.addEventListener('popstate', () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const sessionId = urlParams.get('session');
+        
+        if (sessionId) {
+            // Open the session modal for the new session ID
+            openSessionDetails(sessionId);
+        } else {
+            // Close any open modals if no session ID in URL
+            if (sessionModal.open) {
+                sessionModal.close();
+            }
+            if (editorModal && editorModal.open) {
+                closeFullPageEditor();
+            }
+        }
+    });
 });

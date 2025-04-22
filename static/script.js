@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentSessionId = localStorage.getItem("currentSessionId") || null;
   let currentPomodoroId = null;
   let currentBreakId = null;
+  let currentTags = []; // Array to store selected tags
 
   // DOM elements
   const timerDisplay = document.getElementById("timer-display");
@@ -26,6 +27,10 @@ document.addEventListener("DOMContentLoaded", () => {
   const saveBtn = document.querySelector(".save-btn");
   const radialTimer = document.querySelector(".radial-timer circle.progress");
   const confirmModal = document.getElementById("confirm-modal");
+  const tagContainer = document.getElementById("tag-container");
+  const tagInput = document.getElementById("tag-input");
+  const addTagBtn = document.getElementById("add-tag-btn");
+  const tagSelect = document.getElementById("tag-select");
 
   // Initialize SimpleMDE if the editor element exists
   let simpleMDE;
@@ -62,6 +67,190 @@ document.addEventListener("DOMContentLoaded", () => {
     radialTimer.style.strokeDashoffset = offset;
   }
 
+  // Load all available tags from the server
+  function loadTags() {
+    if (!tagSelect) return;
+    
+    fetch("/api/tags")
+      .then(response => response.json())
+      .then(tags => {
+        // Clear current options
+        tagSelect.innerHTML = "";
+        
+        // Add a default "Add tag..." option
+        const defaultOption = document.createElement("option");
+        defaultOption.value = "";
+        defaultOption.text = "Add tag...";
+        tagSelect.appendChild(defaultOption);
+        
+        // Add each tag as an option
+        tags.forEach(tag => {
+          const option = document.createElement("option");
+          option.value = tag.name;
+          option.text = tag.name;
+          option.setAttribute("data-color", tag.color);
+          tagSelect.appendChild(option);
+        });
+      })
+      .catch(error => {
+        console.error("Error loading tags:", error);
+      });
+  }
+
+  // Handle tag selection
+  function handleTagSelection() {
+    if (!tagSelect || !tagContainer) return;
+    
+    const selectedTag = tagSelect.value;
+    if (!selectedTag) return;
+    
+    // Get the color or use a default
+    let tagColor = "#3498db"; // Default blue
+    const selectedOption = tagSelect.options[tagSelect.selectedIndex];
+    if (selectedOption && selectedOption.getAttribute("data-color")) {
+      tagColor = selectedOption.getAttribute("data-color");
+    }
+    
+    // Add tag if it's not already selected
+    if (!currentTags.includes(selectedTag)) {
+      addTag(selectedTag, tagColor);
+    }
+    
+    // Reset the select to the default option
+    tagSelect.value = "";
+  }
+
+  // Add a tag to the current session
+  function addTag(tagName, tagColor) {
+    if (!tagContainer) return;
+    
+    // Create tag element
+    const tagElement = document.createElement("span");
+    tagElement.className = "tag";
+    tagElement.textContent = tagName;
+    tagElement.style.backgroundColor = tagColor;
+    
+    // Add remove button
+    const removeBtn = document.createElement("span");
+    removeBtn.className = "tag-remove";
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      removeTag(tagName);
+      tagElement.remove();
+    });
+    
+    tagElement.appendChild(removeBtn);
+    tagContainer.appendChild(tagElement);
+    
+    // Add to current tags array
+    currentTags.push(tagName);
+    
+    // If session is active, update it with the new tag
+    if (currentSessionId) {
+      updateSessionTags();
+    }
+  }
+
+  // Remove a tag from the current session
+  function removeTag(tagName) {
+    const index = currentTags.indexOf(tagName);
+    if (index !== -1) {
+      currentTags.splice(index, 1);
+      
+      // If session is active, update it
+      if (currentSessionId) {
+        updateSessionTags();
+      }
+    }
+  }
+
+  // Update session tags in the database
+  function updateSessionTags() {
+    if (!currentSessionId) return;
+    
+    // Get current session data first
+    fetch(`/api/sessions/${currentSessionId}`)
+      .then(response => response.json())
+      .then(session => {
+        // Prepare the tags string
+        const tagsString = currentTags.join(",");
+        
+        // Update the session
+        return fetch(`/api/sessions/${currentSessionId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            end_time: session.end_time,
+            total_time: session.total_time,
+            status: session.status,
+            completed_pomodoros: session.completed_pomodoros,
+            tags: tagsString
+          })
+        });
+      })
+      .then(response => response.json())
+      .catch(error => console.error("Error updating session tags:", error));
+  }
+
+  // Add a new tag (typed by user)
+  function addNewTag() {
+    if (!tagInput || !tagContainer) return;
+    
+    const tagName = tagInput.value.trim();
+    if (!tagName) return;
+    
+    // Check if tag already exists
+    if (currentTags.includes(tagName)) {
+      tagInput.value = "";
+      return;
+    }
+    
+    // Create the tag in the database first
+    fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: tagName,
+        color: getRandomColor()
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      console.log("Tag created:", data);
+      
+      // Add tag to UI
+      addTag(tagName, getRandomColor());
+      
+      // Clear input
+      tagInput.value = "";
+      
+      // Reload tags in select
+      loadTags();
+    })
+    .catch(error => {
+      console.error("Error creating tag:", error);
+    });
+  }
+
+  // Generate a random color for new tags
+  function getRandomColor() {
+    const colors = [
+      "#3498db", // Blue
+      "#2ecc71", // Green
+      "#e74c3c", // Red
+      "#f39c12", // Orange
+      "#9b59b6", // Purple
+      "#1abc9c", // Teal
+      "#d35400", // Dark Orange
+      "#34495e", // Dark Blue
+      "#16a085", // Light Green
+      "#c0392b", // Burgundy
+    ];
+    
+    return colors[Math.floor(Math.random() * colors.length)];
+  }
+
   // Verify stored session on page load
   function verifyStoredSession() {
     const storedSessionId = localStorage.getItem("currentSessionId");
@@ -87,6 +276,29 @@ document.addEventListener("DOMContentLoaded", () => {
           } else {
             currentSessionId = storedSessionId;
             console.log("Restored session:", currentSessionId);
+            
+            // Restore tags from session
+            if (session.tags) {
+              const tagArray = session.tags.split(",").map(tag => tag.trim());
+              // Clear current tags
+              currentTags = [];
+              tagContainer.innerHTML = "";
+              
+              // Fetch all tags to get their colors
+              fetch("/api/tags")
+                .then(response => response.json())
+                .then(allTags => {
+                  // Add each tag
+                  tagArray.forEach(tagName => {
+                    // Find tag color if available
+                    const tagInfo = allTags.find(t => t.name === tagName);
+                    const tagColor = tagInfo ? tagInfo.color : getRandomColor();
+                    
+                    // Add to UI
+                    addTag(tagName, tagColor);
+                  });
+                });
+            }
           }
         })
         .catch((error) => {
@@ -107,13 +319,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!currentSessionId) {
       sessionStartTime = new Date().toISOString();
-      // Create a new session in the database
+      // Create a new session in the database with tags
       fetch("/api/sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           start_time: sessionStartTime,
           status: "running",
+          tags: currentTags.join(",")
         }),
       })
         .then((response) => response.json())
@@ -283,7 +496,8 @@ document.addEventListener("DOMContentLoaded", () => {
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, pomodoroLength);
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
-    // Update the session with stopped status
+    
+    // Update the session with stopped status and current tags
     return fetch(`/api/sessions/${currentSessionId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -292,6 +506,7 @@ document.addEventListener("DOMContentLoaded", () => {
         total_time: totalTime,
         status: "stopped",
         completed_pomodoros: completedPomodoros,
+        tags: currentTags.join(",")
       }),
     });
   }
@@ -337,10 +552,16 @@ document.addEventListener("DOMContentLoaded", () => {
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
     startBtn.textContent = "Start";
     startBtn.classList.remove("paused");
+    
+    // Clear tags
+    currentTags = [];
+    if (tagContainer) {
+      tagContainer.innerHTML = "";
+    }
 
     // Only try to update the session if we have a session ID
     if (currentSessionId) {
-      // Update session as complete in database
+      // Update session as cancelled in database
       updateSessionStatus("cancelled");
 
       // Reset the session
@@ -483,6 +704,7 @@ document.addEventListener("DOMContentLoaded", () => {
         total_time: totalTime,
         status: status,
         completed_pomodoros: completedPomodoros,
+        tags: currentTags.join(",")
       }),
     })
       .then((response) => response.json())
@@ -624,7 +846,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       })
       .catch((error) =>
-        console.error("Error loading sessions for chart:", error),
+        console.error("Error loading sessions for chart:", error)
       );
   }
 
@@ -648,12 +870,32 @@ document.addEventListener("DOMContentLoaded", () => {
   if (saveBtn) {
     saveBtn.addEventListener("click", saveNote);
   }
+  
+  // Tag event listeners
+  if (tagSelect) {
+    tagSelect.addEventListener("change", handleTagSelection);
+  }
+  
+  if (addTagBtn && tagInput) {
+    addTagBtn.addEventListener("click", addNewTag);
+    
+    // Also allow for enter key
+    tagInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        addNewTag();
+      }
+    });
+  }
 
   // Initialize
   timerDisplay.textContent = formatTime(timeRemaining);
   updateRadialTimer(timeRemaining, pomodoroLength);
   currentPomodoroDisplay.textContent = currentPomodoro;
   requestNotificationPermission();
+  
+  // Load tags
+  loadTags();
 
   // Verify if there's a stored session and validate it
   verifyStoredSession();
@@ -662,13 +904,9 @@ document.addEventListener("DOMContentLoaded", () => {
   if (document.getElementById("weekly-chart")) {
     initWeeklyChart();
   }
+  
   initHeatmap();
 });
-
-// Initialize heatmap
-//
-
-// Replace the heatmap-related code in script.js with this implementation
 
 // Initialize heatmap
 function initHeatmap() {

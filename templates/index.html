@@ -15,8 +15,6 @@
     <link rel="manifest" href="/static/manifest.json">
     <!-- Add auth.js script -->
     <script src="/static/auth.js"></script>
-
-
     <script src="/static/theme.js"></script>
 </head>
 
@@ -29,7 +27,8 @@
             <li><a href="/" class="active">Timer</a></li>
             <li><a href="/history">History</a></li>
             <li><a href="/notes">Notes</a></li>
-            <!-- Add this to your navigation bar -->
+            <li><a href="/activities">Activity</a></li>
+            <li><a href="/tags">Tags</a></li>
             <li class="theme-switcher">
                 <label class="theme-toggle">
                     <input type="checkbox" id="theme-toggle">
@@ -68,6 +67,19 @@
                             <button class="stop-btn">Stop</button>
                             <button class="reset-btn">Reset</button>
                         </div>
+                        
+                        <div class="tags-section">
+                            <h4>Session Tags</h4>
+                            <div class="tag-container" id="tag-container"></div>
+                            <div class="tag-selector">
+                                <select id="tag-select">
+                                    <option value="">Add tag...</option>
+                                </select>
+                                <div class="new-tag-input">
+                                    <button id="add-tag-btn" class="secondary">Add</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </article>
             </div>
@@ -76,6 +88,7 @@
                 <article>
                     <header>
                         <h2>Session Notes</h2>
+                        <p>Record your thoughts, ideas, and accomplishments</p>
                     </header>
                     <div class="editor-container">
                         <textarea id="markdown-editor"
@@ -85,43 +98,6 @@
                 </article>
             </div>
 
-            <div class="weekly-chart-section">
-                <article>
-                    <header>
-                        <h2>Weekly Activity</h2>
-                    </header>
-                    <canvas id="weekly-chart"></canvas>
-                </article>
-            </div>
-            <div class="heatmap-section">
-                <article>
-                    <header>
-                        <h2>Activity History</h2>
-                    </header>
-
-                    <div class="heatmap-scroll-wrapper">
-                        <div class="heatmap-inner">
-                            <div class="month-labels" id="monthLabels"></div>
-
-                            <div class="heatmap-wrapper">
-                                <div class="day-labels">
-                                    <div>Mon</div>
-                                    <div>Tue</div>
-                                    <div>Wed</div>
-                                    <div>Thu</div>
-                                    <div>Fri</div>
-                                    <div>Sat</div>
-                                    <div>Sun</div>
-                                </div>
-
-                                <div class="heatmap" id="heatmap"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="tooltip" id="tooltip"></div>
-                </article>
-            </div>
     </main>
 
     <!-- Confirmation Modal -->

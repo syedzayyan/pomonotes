@@ -22,6 +22,8 @@ func setupRoutes(e *echo.Echo) {
 	authGroup.GET("/", homepage)
 	authGroup.GET("/history", historyPage)
 	authGroup.GET("/notes", notesPage)
+	authGroup.GET("/activities", activitiesPage)
+	authGroup.GET("/tags", tagsManagementPage) // New tags management page
 
 	// Session CRUD - protected API routes
 	authGroup.POST("/api/sessions", createSessionHandler)
@@ -29,6 +31,7 @@ func setupRoutes(e *echo.Echo) {
 	authGroup.GET("/api/sessions/:id", getSessionHandler)
 	authGroup.PUT("/api/sessions/:id", updateSessionHandler)
 	authGroup.DELETE("/api/sessions/:id", deleteSessionHandler)
+	authGroup.GET("/api/sessions/tag", getSessionsByTagHandler) // New route to get sessions by tag
 
 	// Pomodoro CRUD - protected API routes
 	authGroup.POST("/api/pomodoros", createPomodoroHandler)
@@ -46,6 +49,15 @@ func setupRoutes(e *echo.Echo) {
 	authGroup.GET("/api/notes", getAllNotesHandler)  // Get all notes for browsing
 	authGroup.PUT("/api/notes/:id", updateNoteHandler)
 	authGroup.DELETE("/api/notes/:id", deleteNoteHandler)
+	
+	// Tag CRUD - protected API routes
+	authGroup.GET("/api/tags", getTagsHandler)
+	authGroup.POST("/api/tags", createTagHandler)
+	authGroup.PUT("/api/tags/:id", updateTagHandler)
+	authGroup.DELETE("/api/tags/:id", deleteTagHandler)
+	
+	// Stats routes
+	authGroup.GET("/api/stats/monthly-tags", getMonthlyTagStatsHandler) // Get monthly stats by tag
 	
 	// For the PWA
 	e.GET("/manifest.json", func(c echo.Context) error {
@@ -66,6 +78,16 @@ func historyPage(c echo.Context) error {
 // Notes page serves the notes.html
 func notesPage(c echo.Context) error {
 	return c.File("templates/notes.html")
+}
+
+// Activities page serves the activities.html
+func activitiesPage(c echo.Context) error {
+	return c.File("templates/activities.html")
+}
+
+// Tags management page serves the tags.html
+func tagsManagementPage(c echo.Context) error {
+	return c.File("templates/tags.html")
 }
 
 // Login page serves the login.html
