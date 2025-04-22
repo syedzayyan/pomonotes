@@ -2,6 +2,7 @@
 <html lang="en" data-theme="dark">
 
 <head>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pomonotes</title>
@@ -15,32 +16,11 @@
     <link rel="manifest" href="/static/manifest.json">
     <!-- Add auth.js script -->
     <script src="/static/auth.js"></script>
-    <script src="/static/theme.js"></script>
+    <script src="/static/navbar.js"></script>
 </head>
 
 <body>
-    <nav class="container-fluid">
-        <ul>
-            <li><strong>Pomonotes</strong></li>
-        </ul>
-        <ul>
-            <li><a href="/" class="active">Timer</a></li>
-            <li><a href="/history">History</a></li>
-            <li><a href="/notes">Notes</a></li>
-            <li><a href="/activities">Activity</a></li>
-            <li><a href="/tags">Tags</a></li>
-            <li class="theme-switcher">
-                <label class="theme-toggle">
-                    <input type="checkbox" id="theme-toggle">
-                    <span class="theme-slider">
-                        <span class="sun-icon"></span>
-                        <span class="moon-icon"></span>
-                    </span>
-                </label>
-            </li>
-        </ul>
-    </nav>
-
+    <div id="navbar-placeholder"></div>
     <main class="container">
         <div class="app-layout">
             <div class="timer-section">
@@ -67,7 +47,7 @@
                             <button class="stop-btn">Stop</button>
                             <button class="reset-btn">Reset</button>
                         </div>
-                        
+
                         <div class="tags-section">
                             <h4>Session Tags</h4>
                             <div class="tag-container" id="tag-container"></div>
@@ -88,7 +68,6 @@
                 <article>
                     <header>
                         <h2>Session Notes</h2>
-                        <p>Record your thoughts, ideas, and accomplishments</p>
                     </header>
                     <div class="editor-container">
                         <textarea id="markdown-editor"

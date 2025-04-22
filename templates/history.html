@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -14,21 +15,12 @@
     <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
     <link rel="manifest" href="/static/manifest.json">
     <!-- Add auth.js script -->
-    <script src="/static/auth.js"></script>
     <script src="/static/theme.js"></script>
+    <script src="/static/navbar.js"></script>
 </head>
+
 <body>
-    <nav class="container-fluid">
-        <ul>
-            <li><strong>Pomonotes</strong></li>
-        </ul>
-        <ul>
-            <li><a href="/">Timer</a></li>
-            <li><a href="/history" class="active">History</a></li>
-            <li><a href="/notes">Notes</a></li>
-            <li><a href="/activities">Activity</a></li>
-        </ul>
-    </nav>
+    <div id="navbar-placeholder"></div>
 
     <main class="container">
         <article>
@@ -59,7 +51,7 @@
             </div>
         </article>
     </main>
-    
+
     <!-- Session Detail Modal -->
     <dialog id="session-modal">
         <article>
@@ -82,7 +74,7 @@
             </div>
         </article>
     </dialog>
-    
+
     <!-- Full-page Editor Modal -->
     <dialog id="editor-modal" class="editor-modal">
         <article>
@@ -102,4 +94,5 @@
 
     <script src="/static/history.js"></script>
 </body>
+
 </html>
