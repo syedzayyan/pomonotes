@@ -1,3 +1,8 @@
+// Add these sound-related variables at the top of the file, after the existing variables
+let notificationCounter = 0;
+let badgeSupported = 'setAppBadge' in navigator;
+let soundEnabled = true; // Default to enabled
+
 document.addEventListener("DOMContentLoaded", () => {
   // Timer settings
   const pomodoroLength = 25 * 60; // 25 minutes in seconds
@@ -31,6 +36,85 @@ document.addEventListener("DOMContentLoaded", () => {
   const tagInput = document.getElementById("tag-input");
   const addTagBtn = document.getElementById("add-tag-btn");
   const tagSelect = document.getElementById("tag-select");
+
+  // Initialize sound
+  function preloadNotificationSound() {
+    // Get sound element from DOM or create a new audio instance
+    const notificationSound = document.getElementById("notification-sound") || new Audio('/static/notification.mp3');
+    
+    // Load the sound
+    notificationSound.load();
+    
+    // Check if sound should be enabled
+    const savedPreference = localStorage.getItem("sound-enabled");
+    soundEnabled = savedPreference === null ? true : savedPreference === "true";
+    
+    // Update checkbox if it exists
+    const soundEnabledCheckbox = document.getElementById("sound-enabled");
+    if (soundEnabledCheckbox) {
+      soundEnabledCheckbox.checked = soundEnabled;
+    }
+    
+    // Try to play and immediately pause to enable audio on iOS
+    // This helps with iOS restrictions on audio playback
+    if (soundEnabled) {
+      notificationSound.play().then(() => {
+        notificationSound.pause();
+        notificationSound.currentTime = 0;
+      }).catch(err => {
+        console.log('Audio preload failed, will try again when needed:', err);
+      });
+    }
+  }
+
+  // Play notification sound and vibrate
+  function playNotificationAlert() {
+    // Check if sound is enabled in the UI
+    const soundEnabledCheckbox = document.getElementById("sound-enabled");
+    if (soundEnabledCheckbox) {
+      soundEnabled = soundEnabledCheckbox.checked;
+    } else {
+      // Use stored preference if checkbox isn't available
+      const savedPreference = localStorage.getItem("sound-enabled");
+      soundEnabled = savedPreference === null ? true : savedPreference === "true";
+    }
+    
+    // Play sound if enabled
+    if (soundEnabled) {
+      const notificationSound = document.getElementById("notification-sound") || new Audio('/static/notification.mp3');
+      notificationSound.play().catch(err => console.log('Could not play notification sound:', err));
+    }
+    
+    // Vibrate if supported (most mobile devices)
+    if ('vibrate' in navigator) {
+      navigator.vibrate([200, 100, 200]); // Vibrate for 200ms, pause for 100ms, vibrate for 200ms
+    }
+    
+    // Increment notification counter
+    notificationCounter++;
+    
+    // Update app badge if supported
+    if (badgeSupported) {
+      navigator.setAppBadge(notificationCounter).catch(err => {
+        console.log('Could not set app badge:', err);
+      });
+    }
+    
+    // Store the counter in localStorage to persist between sessions
+    localStorage.setItem('notificationCounter', notificationCounter);
+  }
+  
+  // Clear notification counter
+  function clearNotificationCounter() {
+    notificationCounter = 0;
+    localStorage.setItem('notificationCounter', 0);
+    
+    if (badgeSupported) {
+      navigator.clearAppBadge().catch(err => {
+        console.log('Could not clear app badge:', err);
+      });
+    }
+  }
 
   // Initialize SimpleMDE if the editor element exists
   let simpleMDE;
@@ -370,6 +454,9 @@ document.addEventListener("DOMContentLoaded", () => {
         startBtn.textContent = "Start";
         startBtn.classList.remove("paused");
 
+        // Play sound and vibrate when timer finishes
+        playNotificationAlert();
+
         if (isBreak) {
           // If break is over, move to next pomodoro
           completeBreak();
@@ -396,6 +483,9 @@ document.addEventListener("DOMContentLoaded", () => {
             new Notification("Pomodoro Complete!", {
               body: `Time for a ${breakType} break. Click to return to app.`,
               icon: "/static/icon-192x192.png",
+              badge: "/static/icon-192x192.png", // Add badge for notifications on some platforms
+              tag: "pomodoro-notification", // Group similar notifications
+              renotify: true // Make the device vibrate/alert even if a notification with the same tag already exists
             });
           }
         }
@@ -568,6 +658,9 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSessionId = null;
       localStorage.removeItem("currentSessionId");
     }
+    
+    // Clear notification counter when resetting
+    clearNotificationCounter();
   }
 
   // Helper functions for database updates
@@ -768,7 +861,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Request notification permission
   function requestNotificationPermission() {
     if ("Notification" in window) {
-      Notification.requestPermission();
+      Notification.requestPermission().then(permission => {
+        console.log("Notification permission:", permission);
+        // If granted, we might as well try to register for push notifications
+        if (permission === "granted" && 'serviceWorker' in navigator) {
+          // You'd typically register for push notifications here
+          console.log("Notification permission granted");
+        }
+      });
     }
   }
 
@@ -807,47 +907,65 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Create the chart
-        const ctx = document.getElementById("weekly-chart").getContext("2d");
-        new Chart(ctx, {
-          type: "bar",
-          data: {
-            labels: days,
-            datasets: [
-              {
-                label: "Minutes",
-                data: dailyDurations,
-                backgroundColor: "rgba(231, 76, 60, 0.7)",
-                borderColor: "rgba(231, 76, 60, 1)",
-                borderWidth: 1,
+        const ctx = document.getElementById("weekly-chart");
+        if (ctx) {
+          const chartContext = ctx.getContext("2d");
+          new Chart(chartContext, {
+            type: "bar",
+            data: {
+              labels: days,
+              datasets: [
+                {
+                  label: "Minutes",
+                  data: dailyDurations,
+                  backgroundColor: "rgba(231, 76, 60, 0.7)",
+                  borderColor: "rgba(231, 76, 60, 1)",
+                  borderWidth: 1,
+                },
+              ],
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  title: {
+                    display: true,
+                    text: "Minutes",
+                  },
+                },
               },
-            ],
-          },
-          options: {
-            responsive: true,
-            scales: {
-              y: {
-                beginAtZero: true,
+              plugins: {
                 title: {
                   display: true,
-                  text: "Minutes",
+                  text: "Daily Pomodoro Minutes",
+                },
+                legend: {
+                  display: false,
                 },
               },
             },
-            plugins: {
-              title: {
-                display: true,
-                text: "Daily Pomodoro Minutes",
-              },
-              legend: {
-                display: false,
-              },
-            },
-          },
-        });
+          });
+        }
       })
       .catch((error) =>
         console.error("Error loading sessions for chart:", error)
       );
+  }
+
+  // Restore notification counter from localStorage
+  function restoreNotificationCounter() {
+    const storedCounter = localStorage.getItem('notificationCounter');
+    if (storedCounter !== null) {
+      notificationCounter = parseInt(storedCounter);
+      
+      // Update badge if supported
+      if (badgeSupported && notificationCounter > 0) {
+        navigator.setAppBadge(notificationCounter).catch(err => {
+          console.log('Could not restore app badge:', err);
+        });
+      }
+    }
   }
 
   // Event listeners
@@ -888,11 +1006,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Clear notifications when user interacts with the app
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      clearNotificationCounter();
+    }
+  });
+
   // Initialize
   timerDisplay.textContent = formatTime(timeRemaining);
   updateRadialTimer(timeRemaining, pomodoroLength);
   currentPomodoroDisplay.textContent = currentPomodoro;
   requestNotificationPermission();
+  preloadNotificationSound();
+  restoreNotificationCounter();
   
   // Load tags
   loadTags();

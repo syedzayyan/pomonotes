@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pomonotes-v1';
+const CACHE_NAME = 'pomonotes-v2';
 const ASSETS = [
   '/',
   '/history',
@@ -9,6 +9,7 @@ const ASSETS = [
   '/static/notes.js',
   '/static/icon-192x192.png',
   '/static/icon-512x512.png',
+  '/static/notification.mp3',
   'https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css',
   'https://unpkg.com/htmx.org@1.9.6',
   'https://cdn.jsdelivr.net/npm/chart.js',
@@ -83,12 +84,36 @@ self.addEventListener('fetch', event => {
 
 // Handle push notifications
 self.addEventListener('push', event => {
-  const title = 'Pomonotes';
+  const data = event.data.text() ? JSON.parse(event.data.text()) : {};
+  const title = data.title || 'Pomonotes';
   const options = {
-    body: event.data.text(),
+    body: data.body || 'Your timer has completed!',
     icon: '/static/icon-192x192.png',
-    badge: '/static/icon-192x192.png'
+    badge: '/static/icon-192x192.png',
+    tag: 'pomodoro-notification',
+    renotify: true,
+    actions: [
+      {
+        action: 'open',
+        title: 'Open App'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss'
+      }
+    ],
+    data: {
+      url: '/'
+    }
   };
+  
+  // Try to increment the badge counter
+  if ('setAppBadge' in navigator) {
+    self.registration.getNotifications().then(notifications => {
+      const count = notifications.length + 1;
+      navigator.setAppBadge(count).catch(err => console.error('Badge error:', err));
+    });
+  }
   
   event.waitUntil(
     self.registration.showNotification(title, options)
@@ -99,7 +124,29 @@ self.addEventListener('push', event => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   
+  if (event.action === 'dismiss') {
+    return;
+  }
+  
+  // Default action is to open the app
   event.waitUntil(
-    clients.openWindow('/')
+    clients.matchAll({type: 'window'}).then(clientList => {
+      // If a tab is already open, focus it
+      for (const client of clientList) {
+        if (client.url === '/' && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      
+      // Otherwise open a new tab
+      if (clients.openWindow) {
+        return clients.openWindow('/');
+      }
+    })
   );
+});
+
+// Handle notification close events
+self.addEventListener('notificationclose', event => {
+  console.log('Notification was closed', event);
 });
