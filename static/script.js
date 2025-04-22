@@ -376,7 +376,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function completePomodoro() {
     // Only update if we have a pomodoro ID
     if (!currentPomodoroId) return;
-
+    updateSessionProgress();
     updatePomodoroStatus("completed");
   }
 
