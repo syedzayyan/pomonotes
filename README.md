@@ -1,72 +1,93 @@
-# Pomonotes
+# Pomonotes ⏱️📝
 
-A minimalist Pomodoro timer with markdown note-taking capabilities, built with Go and modern web technologies. Mostly because I track sessions and I want to record when I did what just like that Memento movie. I am very foregetful and this hopefully helps you as well, if you are using it.
+A simple Pomodoro timer with built-in Markdown note-taking. Made for forgetful folks (like me) who want to track when they worked on what—kind of like *Memento*, but with fewer tattoos.
 
-## Features
+---
 
-- **Complete Pomodoro System**
-  - Four 25-minute pomodoros per session
-  - Short breaks (5 min) after pomodoros 1-3
-  - Long break (15 min) after pomodoro 4
-  - Pause, stop, and reset functionality with confirmation
-  - Beautiful radial timer visualization
+## Features 🚀
 
-- **Markdown Notes**
-  - Write notes during your pomodoro sessions
-  - Full markdown support with live preview
-  - Quick formatting toolbar
-  - Notes associated with specific pomodoros
+### 🍅 Pomodoro Timer  
+- 4x 25-minute pomodoros per session  
+- 5-minute short breaks after pomodoros 1–3  
+- 15-minute long break after pomodoro 4  
+- Pause, stop, and reset (with confirmation)  
+- Clean radial timer display  
 
-- **Session Management**
-  - View complete session history
-  - See detailed breakdown of each session
-  - Add notes to past sessions
-  - Track your productivity over time
+### 📝 Markdown Notes  
+- Take notes during pomodoro sessions  
+- Full Markdown support with live preview  
+- Quick formatting toolbar  
+- Notes linked to each pomodoro  
 
-- **Analytics**
-  - 7-day productivity visualization
-  - Track completed pomodoros
-  - Measure total focused time
+### 📅 Session Management  
+- View full session history  
+- Breakdown of pomodoros and breaks  
+- Add/edit notes for past sessions  
+- Track focus and productivity over time  
 
-- **Progressive Web App**
-  - Install on your device
-  - Work offline
-  - Notifications for timer completion
+### 📊 Analytics  
+- 7-day productivity chart  
+- Total focused time  
+- Completed pomodoros counter  
 
-## Technology Stack
+### 📱 Progressive Web App  
+- Installable on your device  
+- Works offline  
+- Timer completion notifications  
 
-- **Backend**: Go with Echo framework
-- **Database**: SQLite
-- **Frontend**: HTML, CSS, JavaScript 
-- **UI Framework**: Pico CSS for minimal styling
-- **Interactivity**: HTMX for seamless interactions
-- **Charts**: Chart.js for data visualization
-- **Markdown**: Marked.js for rendering
+---
 
-## Design Decisions
+## ⚙️ Tech Stack  
+- **Backend:** Go + Echo  
+- **Database:** SQLite  
+- **Frontend:** HTML, CSS, JS  
+- **UI Framework:** Pico CSS  
+- **Interactivity:** HTMX  
+- **Charts:** Chart.js  
+- **Markdown Rendering:** Marked.js  
 
-### Database Structure
+---
 
-The application uses a four-table design:
+## 🗂️ Database Schema  
+- **Sessions:** Tracks entire work sessions  
+- **Pomodoros:** Individual 25-minute focus periods  
+- **Breaks:** Short and long breaks  
+- **Notes:** Markdown notes linked to sessions/pomodoros  
 
-1. **Sessions**: Tracks overall work sessions
-2. **Pomodoros**: Records individual 25-minute focus periods
-3. **Breaks**: Stores break periods between pomodoros
-4. **Notes**: Contains markdown notes linked to sessions/pomodoros
+---
 
+## 🛠️ Local Development
 
-## Local Development
+```bash
+git clone <repo-url>
+cd pomonotes
+go get
+ADMIN_PASSWORD=your_pass JWT_SECRET=your_secure_jwt_secret go run *.go
+```
 
-1. Clone the repository
-2. Make sure Go is installed
-3. Install dependencies: `go get`
-4. Run the application: `go run *.go ADMIN_PASSWORD=your_pass JWT_SECRET=your_secure_jwt_secret go run *.go`
-5. Visit `http://localhost:8080` in your browser
+## 🚀 Quick Start with Docker
 
-## Future Enhancements
+### Step 1: Pull the Image
 
-- Task management integration
-- Statistics and reporting
-- Custom timer settings
-- Data export/import
-- Actual Authentication
+Once the image is pushed to Docker Hub (or once you build it yourself), you can easily run Pomonotes.
+
+```bash
+docker pull yourdockerhubusername/pomonotes
+```
+🛡️ Default Credentials:
+
+If no environment variables are set, the container will use:
+
+ADMIN_PASSWORD=admin
+JWT_SECRET=your_secure_jwt_secret
+
+⚠️ It's strongly recommended to override these for production use!
+
+To run with secure credentials:
+
+```bash
+docker run -p 8080:8080 \
+  -e ADMIN_PASSWORD=mysecurepassword \
+  -e JWT_SECRET=mylongsecurejwtsecret \
+  yourdockerhubusername/pomonotes
+```

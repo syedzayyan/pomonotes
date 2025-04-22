@@ -1,0 +1,12 @@
+# Ignore DB in dev if you want a clean image
+pomonotes.db
+
+# Standard ignores
+*.log
+*.tmp
+*.swp
+*.bak
+.DS_Store
+.idea/
+.vscode/
+node_modules/
