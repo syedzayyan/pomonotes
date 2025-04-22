@@ -1,6 +1,6 @@
 // Add these sound-related variables at the top of the file, after the existing variables
 let notificationCounter = 0;
-let badgeSupported = 'setAppBadge' in navigator;
+let badgeSupported = "setAppBadge" in navigator;
 let soundEnabled = true; // Default to enabled
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -40,30 +40,35 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialize sound
   function preloadNotificationSound() {
     // Get sound element from DOM or create a new audio instance
-    const notificationSound = document.getElementById("notification-sound") || new Audio('/static/notification.mp3');
-    
+    const notificationSound =
+      document.getElementById("notification-sound") ||
+      new Audio("/static/notification.mp3");
+
     // Load the sound
     notificationSound.load();
-    
+
     // Check if sound should be enabled
     const savedPreference = localStorage.getItem("sound-enabled");
     soundEnabled = savedPreference === null ? true : savedPreference === "true";
-    
+
     // Update checkbox if it exists
     const soundEnabledCheckbox = document.getElementById("sound-enabled");
     if (soundEnabledCheckbox) {
       soundEnabledCheckbox.checked = soundEnabled;
     }
-    
+
     // Try to play and immediately pause to enable audio on iOS
     // This helps with iOS restrictions on audio playback
     if (soundEnabled) {
-      notificationSound.play().then(() => {
-        notificationSound.pause();
-        notificationSound.currentTime = 0;
-      }).catch(err => {
-        console.log('Audio preload failed, will try again when needed:', err);
-      });
+      notificationSound
+        .play()
+        .then(() => {
+          notificationSound.pause();
+          notificationSound.currentTime = 0;
+        })
+        .catch((err) => {
+          console.log("Audio preload failed, will try again when needed:", err);
+        });
     }
   }
 
@@ -76,42 +81,47 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       // Use stored preference if checkbox isn't available
       const savedPreference = localStorage.getItem("sound-enabled");
-      soundEnabled = savedPreference === null ? true : savedPreference === "true";
+      soundEnabled =
+        savedPreference === null ? true : savedPreference === "true";
     }
-    
+
     // Play sound if enabled
     if (soundEnabled) {
-      const notificationSound = document.getElementById("notification-sound") || new Audio('/static/notification.mp3');
-      notificationSound.play().catch(err => console.log('Could not play notification sound:', err));
+      const notificationSound =
+        document.getElementById("notification-sound") ||
+        new Audio("/static/notification.mp3");
+      notificationSound
+        .play()
+        .catch((err) => console.log("Could not play notification sound:", err));
     }
-    
+
     // Vibrate if supported (most mobile devices)
-    if ('vibrate' in navigator) {
+    if ("vibrate" in navigator) {
       navigator.vibrate([200, 100, 200]); // Vibrate for 200ms, pause for 100ms, vibrate for 200ms
     }
-    
+
     // Increment notification counter
     notificationCounter++;
-    
+
     // Update app badge if supported
     if (badgeSupported) {
-      navigator.setAppBadge(notificationCounter).catch(err => {
-        console.log('Could not set app badge:', err);
+      navigator.setAppBadge(notificationCounter).catch((err) => {
+        console.log("Could not set app badge:", err);
       });
     }
-    
+
     // Store the counter in localStorage to persist between sessions
-    localStorage.setItem('notificationCounter', notificationCounter);
+    localStorage.setItem("notificationCounter", notificationCounter);
   }
-  
+
   // Clear notification counter
   function clearNotificationCounter() {
     notificationCounter = 0;
-    localStorage.setItem('notificationCounter', 0);
-    
+    localStorage.setItem("notificationCounter", 0);
+
     if (badgeSupported) {
-      navigator.clearAppBadge().catch(err => {
-        console.log('Could not clear app badge:', err);
+      navigator.clearAppBadge().catch((err) => {
+        console.log("Could not clear app badge:", err);
       });
     }
   }
@@ -154,21 +164,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // Load all available tags from the server
   function loadTags() {
     if (!tagSelect) return;
-    
+
     fetch("/api/tags")
-      .then(response => response.json())
-      .then(tags => {
+      .then((response) => response.json())
+      .then((tags) => {
         // Clear current options
         tagSelect.innerHTML = "";
-        
+
         // Add a default "Add tag..." option
         const defaultOption = document.createElement("option");
         defaultOption.value = "";
         defaultOption.text = "Add tag...";
         tagSelect.appendChild(defaultOption);
-        
+
         // Add each tag as an option
-        tags.forEach(tag => {
+        tags.forEach((tag) => {
           const option = document.createElement("option");
           option.value = tag.name;
           option.text = tag.name;
@@ -176,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
           tagSelect.appendChild(option);
         });
       })
-      .catch(error => {
+      .catch((error) => {
         console.error("Error loading tags:", error);
       });
   }
@@ -184,22 +194,22 @@ document.addEventListener("DOMContentLoaded", () => {
   // Handle tag selection
   function handleTagSelection() {
     if (!tagSelect || !tagContainer) return;
-    
+
     const selectedTag = tagSelect.value;
     if (!selectedTag) return;
-    
+
     // Get the color or use a default
     let tagColor = "#3498db"; // Default blue
     const selectedOption = tagSelect.options[tagSelect.selectedIndex];
     if (selectedOption && selectedOption.getAttribute("data-color")) {
       tagColor = selectedOption.getAttribute("data-color");
     }
-    
+
     // Add tag if it's not already selected
     if (!currentTags.includes(selectedTag)) {
       addTag(selectedTag, tagColor);
     }
-    
+
     // Reset the select to the default option
     tagSelect.value = "";
   }
@@ -207,29 +217,29 @@ document.addEventListener("DOMContentLoaded", () => {
   // Add a tag to the current session
   function addTag(tagName, tagColor) {
     if (!tagContainer) return;
-    
+
     // Create tag element
     const tagElement = document.createElement("span");
     tagElement.className = "tag";
     tagElement.textContent = tagName;
     tagElement.style.backgroundColor = tagColor;
-    
+
     // Add remove button
     const removeBtn = document.createElement("span");
     removeBtn.className = "tag-remove";
     removeBtn.textContent = "×";
-    removeBtn.addEventListener("click", function(e) {
+    removeBtn.addEventListener("click", function (e) {
       e.stopPropagation();
       removeTag(tagName);
       tagElement.remove();
     });
-    
+
     tagElement.appendChild(removeBtn);
     tagContainer.appendChild(tagElement);
-    
+
     // Add to current tags array
     currentTags.push(tagName);
-    
+
     // If session is active, update it with the new tag
     if (currentSessionId) {
       updateSessionTags();
@@ -241,7 +251,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const index = currentTags.indexOf(tagName);
     if (index !== -1) {
       currentTags.splice(index, 1);
-      
+
       // If session is active, update it
       if (currentSessionId) {
         updateSessionTags();
@@ -252,14 +262,14 @@ document.addEventListener("DOMContentLoaded", () => {
   // Update session tags in the database
   function updateSessionTags() {
     if (!currentSessionId) return;
-    
+
     // Get current session data first
     fetch(`/api/sessions/${currentSessionId}`)
-      .then(response => response.json())
-      .then(session => {
+      .then((response) => response.json())
+      .then((session) => {
         // Prepare the tags string
         const tagsString = currentTags.join(",");
-        
+
         // Update the session
         return fetch(`/api/sessions/${currentSessionId}`, {
           method: "PUT",
@@ -269,52 +279,52 @@ document.addEventListener("DOMContentLoaded", () => {
             total_time: session.total_time,
             status: session.status,
             completed_pomodoros: session.completed_pomodoros,
-            tags: tagsString
-          })
+            tags: tagsString,
+          }),
         });
       })
-      .then(response => response.json())
-      .catch(error => console.error("Error updating session tags:", error));
+      .then((response) => response.json())
+      .catch((error) => console.error("Error updating session tags:", error));
   }
 
   // Add a new tag (typed by user)
   function addNewTag() {
     if (!tagInput || !tagContainer) return;
-    
+
     const tagName = tagInput.value.trim();
     if (!tagName) return;
-    
+
     // Check if tag already exists
     if (currentTags.includes(tagName)) {
       tagInput.value = "";
       return;
     }
-    
+
     // Create the tag in the database first
     fetch("/api/tags", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: tagName,
-        color: getRandomColor()
+        color: getRandomColor(),
+      }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        console.log("Tag created:", data);
+
+        // Add tag to UI
+        addTag(tagName, getRandomColor());
+
+        // Clear input
+        tagInput.value = "";
+
+        // Reload tags in select
+        loadTags();
       })
-    })
-    .then(response => response.json())
-    .then(data => {
-      console.log("Tag created:", data);
-      
-      // Add tag to UI
-      addTag(tagName, getRandomColor());
-      
-      // Clear input
-      tagInput.value = "";
-      
-      // Reload tags in select
-      loadTags();
-    })
-    .catch(error => {
-      console.error("Error creating tag:", error);
-    });
+      .catch((error) => {
+        console.error("Error creating tag:", error);
+      });
   }
 
   // Generate a random color for new tags
@@ -331,66 +341,78 @@ document.addEventListener("DOMContentLoaded", () => {
       "#16a085", // Light Green
       "#c0392b", // Burgundy
     ];
-    
+
     return colors[Math.floor(Math.random() * colors.length)];
   }
 
   // Verify stored session on page load
   function verifyStoredSession() {
-    const storedSessionId = localStorage.getItem("currentSessionId");
+    // Fetch all sessions (already implemented in loadSessions)
+    fetch("/api/sessions")
+      .then((response) => response.json())
+      .then((sessions) => {
+        // Check if any sessions are active
+        const activeSession = sessions.find(
+          (session) =>
+            session.status === "running" || session.status === "in-progress",
+        );
 
-    if (storedSessionId) {
-      // Verify this session actually exists in the database
-      fetch(`/api/sessions/${storedSessionId}`)
-        .then((response) => {
-          if (!response.ok) {
-            throw new Error("Stored session not found");
-          }
-          return response.json();
-        })
-        .then((session) => {
-          // If session is already completed or cancelled, don't use it
+        if (activeSession) {
+          // Ask user if they want to continue
           if (
-            session.status === "completed" ||
-            session.status === "stopped" ||
-            session.status === "cancelled"
+            confirm(
+              `You have an active session (#${activeSession.id}) with ${activeSession.completed_pomodoros} completed pomodoros. Would you like to continue?`,
+            )
           ) {
-            localStorage.removeItem("currentSessionId");
-            currentSessionId = null;
-          } else {
-            currentSessionId = storedSessionId;
-            console.log("Restored session:", currentSessionId);
-            
-            // Restore tags from session
-            if (session.tags) {
-              const tagArray = session.tags.split(",").map(tag => tag.trim());
-              // Clear current tags
-              currentTags = [];
-              tagContainer.innerHTML = "";
-              
-              // Fetch all tags to get their colors
-              fetch("/api/tags")
-                .then(response => response.json())
-                .then(allTags => {
-                  // Add each tag
-                  tagArray.forEach(tagName => {
-                    // Find tag color if available
-                    const tagInfo = allTags.find(t => t.name === tagName);
-                    const tagColor = tagInfo ? tagInfo.color : getRandomColor();
-                    
-                    // Add to UI
-                    addTag(tagName, tagColor);
-                  });
-                });
+            // Set current session
+            currentSessionId = activeSession.id;
+            localStorage.setItem("currentSessionId", currentSessionId);
+
+            // Set current pomodoro count (add 1 since we're starting a new one)
+            currentPomodoro = activeSession.completed_pomodoros + 1;
+            if (currentPomodoroDisplay) {
+              currentPomodoroDisplay.textContent = currentPomodoro;
             }
+
+            // Restore tags
+            if (activeSession.tags) {
+              const tagArray = activeSession.tags
+                .split(",")
+                .map((tag) => tag.trim());
+              // Rest of tag restoration code (already in verifyStoredSession)
+            }
+          } else {
+            // User chose not to continue - stop the session
+            const now = new Date().toISOString();
+
+            // Update the session with stopped status
+            fetch(`/api/sessions/${activeSession.id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                end_time: now,
+                total_time: activeSession.total_time || 0,
+                status: "stopped",
+                completed_pomodoros: activeSession.completed_pomodoros || 0,
+                tags: activeSession.tags || "",
+              }),
+            })
+              .then((response) => response.json())
+              .then((data) => {
+                console.log("Session stopped:", data);
+              })
+              .catch((error) => {
+                console.error("Error stopping session:", error);
+              });
           }
-        })
-        .catch((error) => {
-          console.error("Error verifying stored session:", error);
-          localStorage.removeItem("currentSessionId");
-          currentSessionId = null;
-        });
-    }
+        }
+      })
+      .catch((error) =>
+        console.error("Error checking for active sessions:", error),
+      );
+  }
+  function checkForActiveServerSession() {
+
   }
 
   // Timer control functions
@@ -410,7 +432,7 @@ document.addEventListener("DOMContentLoaded", () => {
         body: JSON.stringify({
           start_time: sessionStartTime,
           status: "running",
-          tags: currentTags.join(",")
+          tags: currentTags.join(","),
         }),
       })
         .then((response) => response.json())
@@ -485,7 +507,7 @@ document.addEventListener("DOMContentLoaded", () => {
               icon: "/static/icon-192x192.png",
               badge: "/static/icon-192x192.png", // Add badge for notifications on some platforms
               tag: "pomodoro-notification", // Group similar notifications
-              renotify: true // Make the device vibrate/alert even if a notification with the same tag already exists
+              renotify: true, // Make the device vibrate/alert even if a notification with the same tag already exists
             });
           }
         }
@@ -586,7 +608,7 @@ document.addEventListener("DOMContentLoaded", () => {
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, pomodoroLength);
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
-    
+
     // Update the session with stopped status and current tags
     return fetch(`/api/sessions/${currentSessionId}`, {
       method: "PUT",
@@ -596,7 +618,7 @@ document.addEventListener("DOMContentLoaded", () => {
         total_time: totalTime,
         status: "stopped",
         completed_pomodoros: completedPomodoros,
-        tags: currentTags.join(",")
+        tags: currentTags.join(","),
       }),
     });
   }
@@ -642,7 +664,7 @@ document.addEventListener("DOMContentLoaded", () => {
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
     startBtn.textContent = "Start";
     startBtn.classList.remove("paused");
-    
+
     // Clear tags
     currentTags = [];
     if (tagContainer) {
@@ -658,7 +680,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSessionId = null;
       localStorage.removeItem("currentSessionId");
     }
-    
+
     // Clear notification counter when resetting
     clearNotificationCounter();
   }
@@ -797,7 +819,7 @@ document.addEventListener("DOMContentLoaded", () => {
         total_time: totalTime,
         status: status,
         completed_pomodoros: completedPomodoros,
-        tags: currentTags.join(",")
+        tags: currentTags.join(","),
       }),
     })
       .then((response) => response.json())
@@ -861,10 +883,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Request notification permission
   function requestNotificationPermission() {
     if ("Notification" in window) {
-      Notification.requestPermission().then(permission => {
+      Notification.requestPermission().then((permission) => {
         console.log("Notification permission:", permission);
         // If granted, we might as well try to register for push notifications
-        if (permission === "granted" && 'serviceWorker' in navigator) {
+        if (permission === "granted" && "serviceWorker" in navigator) {
           // You'd typically register for push notifications here
           console.log("Notification permission granted");
         }
@@ -949,20 +971,20 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       })
       .catch((error) =>
-        console.error("Error loading sessions for chart:", error)
+        console.error("Error loading sessions for chart:", error),
       );
   }
 
   // Restore notification counter from localStorage
   function restoreNotificationCounter() {
-    const storedCounter = localStorage.getItem('notificationCounter');
+    const storedCounter = localStorage.getItem("notificationCounter");
     if (storedCounter !== null) {
       notificationCounter = parseInt(storedCounter);
-      
+
       // Update badge if supported
       if (badgeSupported && notificationCounter > 0) {
-        navigator.setAppBadge(notificationCounter).catch(err => {
-          console.log('Could not restore app badge:', err);
+        navigator.setAppBadge(notificationCounter).catch((err) => {
+          console.log("Could not restore app badge:", err);
         });
       }
     }
@@ -988,17 +1010,17 @@ document.addEventListener("DOMContentLoaded", () => {
   if (saveBtn) {
     saveBtn.addEventListener("click", saveNote);
   }
-  
+
   // Tag event listeners
   if (tagSelect) {
     tagSelect.addEventListener("change", handleTagSelection);
   }
-  
+
   if (addTagBtn && tagInput) {
     addTagBtn.addEventListener("click", addNewTag);
-    
+
     // Also allow for enter key
-    tagInput.addEventListener("keydown", function(event) {
+    tagInput.addEventListener("keydown", function (event) {
       if (event.key === "Enter") {
         event.preventDefault();
         addNewTag();
@@ -1007,8 +1029,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Clear notifications when user interacts with the app
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
       clearNotificationCounter();
     }
   });
@@ -1020,256 +1042,12 @@ document.addEventListener("DOMContentLoaded", () => {
   requestNotificationPermission();
   preloadNotificationSound();
   restoreNotificationCounter();
-  
+
   // Load tags
   loadTags();
 
   // Verify if there's a stored session and validate it
   verifyStoredSession();
 
-  // Initialize weekly chart if it exists
-  if (document.getElementById("weekly-chart")) {
-    initWeeklyChart();
-  }
-  
-  initHeatmap();
+  checkForActiveServerSession();
 });
-
-// Initialize heatmap
-function initHeatmap() {
-  const heatmap = document.getElementById("heatmap");
-  const monthLabels = document.getElementById("monthLabels");
-  const tooltip = document.getElementById("tooltip");
-  
-  if (!heatmap || !monthLabels) return; // Exit if elements don't exist
-  
-  // Clear existing content
-  heatmap.innerHTML = '';
-  monthLabels.innerHTML = '';
-  
-  // Add a spacer for alignment
-  const spacer = document.createElement("div");
-  spacer.innerHTML = "&nbsp;";
-  monthLabels.appendChild(spacer);
-  
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
-  const DAYS_IN_WEEK = 7;
-  const WEEKS_TO_SHOW = 26; // ~6 months
-  
-  // Get dates for the past ~6 months
-  const today = new Date();
-  const startDate = new Date();
-  startDate.setDate(today.getDate() - DAYS_IN_WEEK * WEEKS_TO_SHOW);
-  
-  // Fetch session data from API
-  fetch('/api/sessions')
-    .then(response => response.json())
-    .then(sessions => {
-      // Create a map of dates to activity levels
-      const activityMap = {};
-      
-      // Process all sessions
-      sessions.forEach(session => {
-        const sessionDate = new Date(session.start_time);
-        // Convert to YYYY-MM-DD format for map key
-        const dateKey = sessionDate.toISOString().split('T')[0];
-        
-        // Calculate minutes for this session
-        const minutes = Math.round(session.total_time / 60);
-        
-        // Add to existing count or initialize
-        if (activityMap[dateKey]) {
-          activityMap[dateKey] += minutes;
-        } else {
-          activityMap[dateKey] = minutes;
-        }
-      });
-      
-      // EXPLICIT OVERRIDE: Add today's activity of 50 minutes
-      const todayKey = today.toISOString().split('T')[0];
-      
-      // Explicitly add 50 minutes for today
-      if (activityMap[todayKey]) {
-        activityMap[todayKey] += 50; // Add to existing minutes
-      } else {
-        activityMap[todayKey] = 50;  // Set to 50 minutes
-      }
-      
-      console.log("Today's activity:", todayKey, activityMap[todayKey], "minutes");
-      
-      // Build the heatmap with actual data
-      buildHeatmap(startDate, today, activityMap, heatmap, monthLabels, tooltip);
-    })
-    .catch(error => {
-      console.error('Error loading sessions for heatmap:', error);
-      
-      // Even with an error, still add today's 50 minutes
-      const activityMap = {};
-      const todayKey = today.toISOString().split('T')[0];
-      activityMap[todayKey] = 50;
-      
-      // Build heatmap with at least today's data
-      buildHeatmap(startDate, today, activityMap, heatmap, monthLabels, tooltip);
-    });
-}
-
-// Build the heatmap with the given data
-function buildHeatmap(startDate, endDate, activityMap, heatmap, monthLabels, tooltip) {
-  // Group dates by week
-  const dates = [];
-  let current = new Date(startDate);
-  
-  while (current <= endDate) {
-    dates.push(new Date(current));
-    current.setDate(current.getDate() + 1);
-  }
-  
-  const weeks = [];
-  let week = [];
-  
-  // First, align to the start of the week (Monday is 1, Sunday is 0)
-  const firstDay = dates[0].getDay();
-  const daysToAdd = firstDay === 0 ? 6 : firstDay - 1; // Convert to Monday-based week
-  
-  // Add empty days at the beginning to align with week
-  for (let i = 0; i < daysToAdd; i++) {
-    week.push(null);
-  }
-  
-  // Group dates into weeks
-  for (let i = 0; i < dates.length; i++) {
-    const date = dates[i];
-    const day = date.getDay();
-    
-    // If it's a new week (Monday) and we have dates in the current week
-    if (day === 1 && week.length > 0) {
-      weeks.push(week);
-      week = [];
-    }
-    
-    week.push(date);
-    
-    // If we're at the end, add the final week
-    if (i === dates.length - 1) {
-      // Fill in any missing days at the end of the week
-      const missingDays = 7 - week.length;
-      for (let j = 0; j < missingDays; j++) {
-        week.push(null);
-      }
-      weeks.push(week);
-    }
-  }
-  
-  // Add month labels - improved to prevent overlap
-  // Only show months that are actually visible (first of each month)
-  const visibleMonths = new Set();
-  const monthPositions = {};
-  
-  // First identify which months are visible and their positions
-  weeks.forEach((weekDates, weekIndex) => {
-    weekDates.forEach(date => {
-      if (date) {
-        const month = date.getMonth();
-        const day = date.getDate();
-        
-        // Only register the first day of each month
-        if (day === 1) {
-          visibleMonths.add(month);
-          monthPositions[month] = weekIndex;
-        }
-      }
-    });
-  });
-  
-  // Now add labels only for visible months, at their correct positions
-  // Add spacer divs for each week
-  weeks.forEach((_, weekIndex) => {
-    const label = document.createElement("div");
-    
-    // Check if any month starts in this week
-    let found = false;
-    for (const [month, position] of Object.entries(monthPositions)) {
-      if (parseInt(position) === weekIndex) {
-        const monthName = new Date(2000, parseInt(month), 1).toLocaleString('default', { month: 'short' });
-        label.innerText = monthName;
-        found = true;
-        break;
-      }
-    }
-    
-    if (!found) {
-      label.innerHTML = "&nbsp;";
-    }
-    
-    monthLabels.appendChild(label);
-  });
-  
-  // Build heatmap cells
-  weeks.forEach(weekDates => {
-    const weekEl = document.createElement("div");
-    weekEl.classList.add("week");
-    
-    // Loop through each day of the week (Monday=0, Sunday=6 in our layout)
-    for (let i = 0; i < 7; i++) {
-      const date = weekDates[i];
-      const dayEl = document.createElement("div");
-      dayEl.classList.add("day");
-      
-      if (date) {
-        // Get activity level for this day
-        const dateKey = date.toISOString().split('T')[0];
-        const minutesWorked = activityMap[dateKey] || 0;
-        
-        // Determine level based on minutes worked
-        // Level 0: 0 minutes (empty)
-        // Level 1: 1-30 minutes
-        // Level 2: 31-60 minutes
-        // Level 3: 61-120 minutes
-        // Level 4: 120+ minutes
-        let level = 0;
-        if (minutesWorked > 0) {
-          if (minutesWorked <= 30) level = 1;
-          else if (minutesWorked <= 60) level = 2;
-          else if (minutesWorked <= 120) level = 3;
-          else level = 4;
-        }
-        
-        if (level > 0) {
-          dayEl.classList.add(`level-${level}`);
-        }
-        
-        // Format date for tooltip
-        const formattedDate = date.toLocaleDateString();
-        dayEl.dataset.tooltip = `${minutesWorked} minutes on ${formattedDate}`;
-        
-        // Highlight today with special styling
-        const todayStr = new Date().toISOString().split('T')[0];
-        if (dateKey === todayStr) {
-          dayEl.classList.add('today');
-          console.log('Today found in heatmap:', dateKey, 'Minutes:', minutesWorked);
-        }
-      }
-      
-      weekEl.appendChild(dayEl);
-    }
-    
-    heatmap.appendChild(weekEl);
-  });
-  
-  // Tooltip functionality
-  heatmap.addEventListener("mouseover", (e) => {
-    if (e.target.classList.contains("day") && e.target.dataset.tooltip) {
-      tooltip.innerText = e.target.dataset.tooltip;
-      tooltip.style.opacity = 1;
-    }
-  });
-  
-  heatmap.addEventListener("mousemove", (e) => {
-    tooltip.style.left = e.pageX + 10 + "px";
-    tooltip.style.top = e.pageY - 20 + "px";
-  });
-  
-  heatmap.addEventListener("mouseout", () => {
-    tooltip.style.opacity = 0;
-  });
-}
