@@ -27,4 +27,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: yourdockerhubusername/pomonotes:latest
+          tags: zayyanmasud/pomonotes:latest
