@@ -689,6 +689,8 @@ document.addEventListener("DOMContentLoaded", () => {
     startBtn.textContent = "Start";
     startBtn.classList.remove("paused");
 
+    clearTimerNotification();
+
     // End the current pomodoro or break in database
     if (isBreak) {
       updateBreakStatus("stopped");
@@ -784,6 +786,8 @@ document.addEventListener("DOMContentLoaded", () => {
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
     startBtn.textContent = "Start";
     startBtn.classList.remove("paused");
+
+    clearTimerNotification();
 
     // Clear tags
     currentTags = [];
@@ -1095,12 +1099,6 @@ document.addEventListener("DOMContentLoaded", () => {
   requestNotificationPermission();
   preloadNotificationSound();
   restoreNotificationCounter();
-
-  // Load tags
   loadTags();
-
-  // Verify if there's a stored session and validate it
   verifyStoredSession();
-
-  checkForActiveServerSession();
 });
