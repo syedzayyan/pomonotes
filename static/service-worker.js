@@ -121,9 +121,53 @@ self.addEventListener('push', event => {
 });
 
 // Handle notification clicks
+// Add this to your service-worker.js file
+
+// Handle notification clicks with enhanced interaction for timer notifications
 self.addEventListener('notificationclick', event => {
-  event.notification.close();
+  const notification = event.notification;
+  notification.close();
   
+  // Handle timer controls via notification actions
+  if (notification.tag === 'timer-notification') {
+    if (event.action === 'pause') {
+      // Tell the page to pause the timer
+      self.clients.matchAll({type: 'window'}).then(clients => {
+        if (clients && clients.length) {
+          clients[0].postMessage({
+            action: 'pauseTimer'
+          });
+        }
+      });
+    } else if (event.action === 'resume') {
+      // Tell the page to resume the timer
+      self.clients.matchAll({type: 'window'}).then(clients => {
+        if (clients && clients.length) {
+          clients[0].postMessage({
+            action: 'resumeTimer'
+          });
+        }
+      });
+    } else {
+      // Default action is to focus/open the app
+      event.waitUntil(
+        clients.matchAll({type: 'window'}).then(clientList => {
+          for (const client of clientList) {
+            if (client.url === '/' && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          
+          if (clients.openWindow) {
+            return clients.openWindow('/');
+          }
+        })
+      );
+    }
+    return;
+  }
+  
+  // Handle regular notification clicks (existing code)
   if (event.action === 'dismiss') {
     return;
   }

@@ -1005,96 +1005,29 @@ document.addEventListener("DOMContentLoaded", () => {
     if ("Notification" in window) {
       Notification.requestPermission().then((permission) => {
         console.log("Notification permission:", permission);
-        // If granted, we might as well try to register for push notifications
-        if (permission === "granted" && "serviceWorker" in navigator) {
-          // You'd typically register for push notifications here
+
+        // If granted, we can use notifications
+        if (permission === "granted") {
           console.log("Notification permission granted");
+
+          // If timer is already running, create a notification for it
+          if (isTimerRunning) {
+            createTimerNotification(timeRemaining, isBreak);
+          }
         }
       });
     }
   }
+  navigator.serviceWorker.addEventListener('message', function (event) {
+    console.log('Message received from service worker:', event.data);
 
-  // Weekly chart initialization
-  function initWeeklyChart() {
-    fetch("/api/sessions")
-      .then((response) => response.json())
-      .then((sessions) => {
-        // Process data for the last 7 days
-        const days = [];
-        const dailyDurations = [];
-
-        // Get dates for the last 7 days
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          days.push(date.toLocaleDateString("en-US", { weekday: "short" }));
-          dailyDurations.push(0); // Initialize with 0 minutes
-        }
-
-        // Calculate duration for each day
-        if (sessions && sessions.length > 0) {
-          sessions.forEach((session) => {
-            const sessionDate = new Date(session.start_time);
-            const today = new Date();
-
-            // Check if session is within the last 7 days
-            const diffTime = Math.abs(today - sessionDate);
-            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-            if (diffDays < 7) {
-              const dayIndex = 6 - diffDays;
-              dailyDurations[dayIndex] += session.total_time / 60; // Convert seconds to minutes
-            }
-          });
-        }
-
-        // Create the chart
-        const ctx = document.getElementById("weekly-chart");
-        if (ctx) {
-          const chartContext = ctx.getContext("2d");
-          new Chart(chartContext, {
-            type: "bar",
-            data: {
-              labels: days,
-              datasets: [
-                {
-                  label: "Minutes",
-                  data: dailyDurations,
-                  backgroundColor: "rgba(231, 76, 60, 0.7)",
-                  borderColor: "rgba(231, 76, 60, 1)",
-                  borderWidth: 1,
-                },
-              ],
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: {
-                  beginAtZero: true,
-                  title: {
-                    display: true,
-                    text: "Minutes",
-                  },
-                },
-              },
-              plugins: {
-                title: {
-                  display: true,
-                  text: "Daily Pomodoro Minutes",
-                },
-                legend: {
-                  display: false,
-                },
-              },
-            },
-          });
-        }
-      })
-      .catch((error) =>
-        console.error("Error loading sessions for chart:", error),
-      );
-  }
-
+    // Handle timer control messages
+    if (event.data.action === 'pauseTimer' && isTimerRunning) {
+      pauseTimer();
+    } else if (event.data.action === 'resumeTimer' && !isTimerRunning && isPaused) {
+      startTimer();
+    }
+  });
   // Restore notification counter from localStorage
   function restoreNotificationCounter() {
     const storedCounter = localStorage.getItem("notificationCounter");
