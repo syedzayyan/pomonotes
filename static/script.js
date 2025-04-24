@@ -2,6 +2,8 @@
 let notificationCounter = 0;
 let badgeSupported = "setAppBadge" in navigator;
 let soundEnabled = true; // Default to enabled
+let activeTimerNotification = null;
+const NOTIFICATION_UPDATE_INTERVAL = 60; // Update every minute
 
 document.addEventListener("DOMContentLoaded", () => {
   // Timer settings
@@ -347,74 +349,154 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Verify stored session on page load
   function verifyStoredSession() {
-    // Fetch all sessions (already implemented in loadSessions)
+    const storedSessionId = localStorage.getItem("currentSessionId");
+
+    // Single fetch to get all sessions
     fetch("/api/sessions")
-      .then((response) => response.json())
-      .then((sessions) => {
-        // Check if any sessions are active
-        const activeSession = sessions.find(
-          (session) =>
-            session.status === "running" || session.status === "in-progress",
-        );
+      .then(response => response.json())
+      .then(sessions => {
+        // Look for stored session
+        if (storedSessionId) {
+          const storedSession = sessions.find(s => s.id === storedSessionId);
 
-        if (activeSession) {
-          // Ask user if they want to continue
-          if (
-            confirm(
-              `You have an active session (#${activeSession.id}) with ${activeSession.completed_pomodoros} completed pomodoros. Would you like to continue?`,
-            )
-          ) {
-            // Set current session
-            currentSessionId = activeSession.id;
-            localStorage.setItem("currentSessionId", currentSessionId);
-
-            // Set current pomodoro count (add 1 since we're starting a new one)
-            currentPomodoro = activeSession.completed_pomodoros + 1;
-            if (currentPomodoroDisplay) {
-              currentPomodoroDisplay.textContent = currentPomodoro;
-            }
-
-            // Restore tags
-            if (activeSession.tags) {
-              const tagArray = activeSession.tags
-                .split(",")
-                .map((tag) => tag.trim());
-              // Rest of tag restoration code (already in verifyStoredSession)
-            }
+          if (!storedSession || ["completed", "stopped", "cancelled"].includes(storedSession.status)) {
+            // Clear invalid or completed stored session
+            localStorage.removeItem("currentSessionId");
+            currentSessionId = null;
           } else {
-            // User chose not to continue - stop the session
-            const now = new Date().toISOString();
+            // Restore valid stored session
+            currentSessionId = storedSessionId;
+            console.log("Restored session:", currentSessionId);
 
-            // Update the session with stopped status
-            fetch(`/api/sessions/${activeSession.id}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                end_time: now,
-                total_time: activeSession.total_time || 0,
-                status: "stopped",
-                completed_pomodoros: activeSession.completed_pomodoros || 0,
-                tags: activeSession.tags || "",
-              }),
-            })
-              .then((response) => response.json())
-              .then((data) => {
-                console.log("Session stopped:", data);
-              })
-              .catch((error) => {
-                console.error("Error stopping session:", error);
-              });
+            // Restore tags if they exist
+            if (storedSession.tags) {
+              restoreSessionTags(storedSession.tags);
+            }
           }
         }
+
+        // Check for active session
+        const activeSession = sessions.find(session =>
+          ["running", "in-progress"].includes(session.status)
+        );
+
+        if (activeSession && activeSession.id !== currentSessionId && confirm(
+          `You have an active session (#${activeSession.id}) with ${activeSession.completed_pomodoros} completed pomodoros. Would you like to continue?`
+        )) {
+          // User wants to continue active session
+          currentSessionId = activeSession.id;
+          localStorage.setItem("currentSessionId", currentSessionId);
+
+          // Update pomodoro count
+          currentPomodoro = activeSession.completed_pomodoros + 1;
+          if (currentPomodoroDisplay) {
+            currentPomodoroDisplay.textContent = currentPomodoro;
+          }
+
+          // Restore tags
+          if (activeSession.tags) {
+            restoreSessionTags(activeSession.tags);
+          }
+        } else if (activeSession && activeSession.id !== currentSessionId) {
+          // User declined - stop the session
+          const now = new Date().toISOString();
+          fetch(`/api/sessions/${activeSession.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              end_time: now,
+              total_time: activeSession.total_time || 0,
+              status: "stopped",
+              completed_pomodoros: activeSession.completed_pomodoros || 0,
+              tags: activeSession.tags || ""
+            })
+          })
+            .then(response => response.json())
+            .then(data => console.log("Session stopped:", data))
+            .catch(error => console.error("Error stopping session:", error));
+        }
       })
-      .catch((error) =>
-        console.error("Error checking for active sessions:", error),
-      );
-  }
-  function checkForActiveServerSession() {
+      .catch(error => console.error("Error fetching sessions:", error));
 
-  }
+    // Integrated helper function
+    function restoreSessionTags(tagString) {
+      const tagArray = tagString.split(",").map(tag => tag.trim());
+      currentTags = [];
+      tagContainer.innerHTML = "";
 
+      fetch("/api/tags")
+        .then(response => response.json())
+        .then(allTags => {
+          tagArray.forEach(tagName => {
+            const tagInfo = allTags.find(t => t.name === tagName);
+            const tagColor = tagInfo ? tagInfo.color : getRandomColor();
+            addTag(tagName, tagColor);
+          });
+        });
+    }
+  }
+  // Create timer notification function
+  function createTimerNotification(timeRemaining, isBreak) {
+    // Only proceed if notification permission is granted
+    if (Notification.permission !== "granted") return;
+
+    // Clear any existing timer notification
+    clearTimerNotification();
+
+    const sessionType = isBreak ?
+      (currentPomodoro % 4 === 0 ? "Long Break" : "Short Break") :
+      `Pomodoro #${currentPomodoro}`;
+
+    const notificationOptions = {
+      body: `${sessionType}: ${formatTime(timeRemaining)} remaining`,
+      icon: "/static/icon-192x192.png",
+      badge: "/static/icon-192x192.png",
+      tag: "timer-notification",
+      silent: true, // Don't play sound for these updates
+      renotify: false,
+      // Add actions to allow quick control of the timer
+      actions: [
+        {
+          action: 'pause',
+          title: isTimerRunning ? 'Pause' : 'Resume'
+        }
+      ]
+    };
+
+    // Create and show the notification
+    navigator.serviceWorker.ready.then(registration => {
+      registration.showNotification("Pomonotes Timer Running", notificationOptions)
+        .then(() => {
+          // Store reference to the active notification
+          activeTimerNotification = {
+            title: "Pomonotes Timer Running",
+            options: notificationOptions
+          };
+        });
+    });
+  }
+  function updateTimerNotification(timeRemaining, isBreak) {
+    // Only proceed if notification permission is granted
+    if (Notification.permission !== "granted") return;
+
+    // Clear existing notification first
+    clearTimerNotification();
+
+    // Then create a new one with updated time
+    createTimerNotification(timeRemaining, isBreak);
+  }
+  function clearTimerNotification() {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.ready.then(registration => {
+      registration.getNotifications({ tag: 'timer-notification' })
+        .then(notifications => {
+          notifications.forEach(notification => notification.close());
+        });
+    });
+
+    activeTimerNotification = null;
+  }
   // Timer control functions
   function startTimer() {
     if (isTimerRunning) return;
@@ -423,6 +505,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startBtn.textContent = "Pause";
     startBtn.classList.add("paused");
 
+    // Create or continue a session
     if (!currentSessionId) {
       sessionStartTime = new Date().toISOString();
       // Create a new session in the database with tags
@@ -438,13 +521,9 @@ document.addEventListener("DOMContentLoaded", () => {
         .then((response) => response.json())
         .then((data) => {
           console.log("Session created:", data);
-          // Get the session ID from the response
           if (data && data.id) {
             currentSessionId = data.id;
-            // Store session ID in localStorage for persistence
             localStorage.setItem("currentSessionId", currentSessionId);
-
-            // Create the first pomodoro if this is a new session
             if (currentPomodoro === 1 && !currentPomodoroId) {
               createNewPomodoro();
             }
@@ -452,7 +531,6 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .catch((error) => console.error("Error creating session:", error));
     } else if (isPaused) {
-      // If we're resuming from pause, just continue the current pomodoro
       isPaused = false;
     }
 
@@ -462,12 +540,25 @@ document.addEventListener("DOMContentLoaded", () => {
         : shortBreakLength
       : pomodoroLength;
 
+    // Create initial timer notification
+    createTimerNotification(timeRemaining, isBreak);
+
+    // Track how many seconds since last notification update
+    let secondsSinceNotificationUpdate = 0;
+
     timerInterval = setInterval(() => {
       timeRemaining--;
+      secondsSinceNotificationUpdate++;
 
       // Update displays
       timerDisplay.textContent = formatTime(timeRemaining);
       updateRadialTimer(timeRemaining, totalTime);
+
+      // Update notification every minute
+      if (secondsSinceNotificationUpdate >= NOTIFICATION_UPDATE_INTERVAL) {
+        updateTimerNotification(timeRemaining, isBreak);
+        secondsSinceNotificationUpdate = 0;
+      }
 
       // Check if timer has finished
       if (timeRemaining <= 0) {
@@ -475,6 +566,9 @@ document.addEventListener("DOMContentLoaded", () => {
         isTimerRunning = false;
         startBtn.textContent = "Start";
         startBtn.classList.remove("paused");
+
+        // Clear any active timer notification
+        clearTimerNotification();
 
         // Play sound and vibrate when timer finishes
         playNotificationAlert();
@@ -505,9 +599,9 @@ document.addEventListener("DOMContentLoaded", () => {
             new Notification("Pomodoro Complete!", {
               body: `Time for a ${breakType} break. Click to return to app.`,
               icon: "/static/icon-192x192.png",
-              badge: "/static/icon-192x192.png", // Add badge for notifications on some platforms
-              tag: "pomodoro-notification", // Group similar notifications
-              renotify: true, // Make the device vibrate/alert even if a notification with the same tag already exists
+              badge: "/static/icon-192x192.png",
+              tag: "pomodoro-notification",
+              renotify: true,
             });
           }
         }
@@ -519,6 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Pause the timer
+  // Modify pauseTimer to handle notification
   function pauseTimer() {
     if (!isTimerRunning) return;
 
@@ -528,6 +623,30 @@ document.addEventListener("DOMContentLoaded", () => {
     startBtn.textContent = "Resume";
     startBtn.classList.remove("paused");
 
+    // Update the notification to show paused state
+    if (Notification.permission === "granted") {
+      clearTimerNotification();
+      const sessionType = isBreak ?
+        (currentPomodoro % 4 === 0 ? "Long Break" : "Short Break") :
+        `Pomodoro #${currentPomodoro}`;
+
+      navigator.serviceWorker.ready.then(registration => {
+        registration.showNotification("Pomonotes Timer Paused", {
+          body: `${sessionType}: ${formatTime(timeRemaining)} remaining`,
+          icon: "/static/icon-192x192.png",
+          badge: "/static/icon-192x192.png",
+          tag: "timer-notification",
+          silent: true,
+          actions: [
+            {
+              action: 'resume',
+              title: 'Resume'
+            }
+          ]
+        });
+      });
+    }
+
     // Update the current pomodoro or break status in the database
     if (isBreak) {
       updateBreakStatus("paused");
@@ -535,6 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updatePomodoroStatus("paused");
     }
   }
+
 
   // Stop the timer (with confirmation)
   function stopTimer() {
