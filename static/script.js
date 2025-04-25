@@ -436,6 +436,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
   // Create timer notification function
+  // Modified createTimerNotification to handle overtime display
   function createTimerNotification(timeRemaining, isBreak) {
     // Only proceed if notification permission is granted
     if (Notification.permission !== "granted") return;
@@ -447,8 +448,16 @@ document.addEventListener("DOMContentLoaded", () => {
       (currentPomodoro % 4 === 0 ? "Long Break" : "Short Break") :
       `Pomodoro #${currentPomodoro}`;
 
+    let timeDisplay;
+    if (timeRemaining < 0) {
+      // We're in overtime
+      timeDisplay = `OVERTIME: ${formatTime(Math.abs(timeRemaining))}`;
+    } else {
+      timeDisplay = `${formatTime(timeRemaining)} remaining`;
+    }
+
     const notificationOptions = {
-      body: `${sessionType}: ${formatTime(timeRemaining)} remaining`,
+      body: `${sessionType}: ${timeDisplay}`,
       icon: "/static/icon-192x192.png",
       badge: "/static/icon-192x192.png",
       tag: "timer-notification",
@@ -540,76 +549,109 @@ document.addEventListener("DOMContentLoaded", () => {
         : shortBreakLength
       : pomodoroLength;
 
+    // Flag to track if we've passed the original time limit
+    let hasPassedTimeLimit = timeRemaining <= 0;
+
     // Create initial timer notification
     createTimerNotification(timeRemaining, isBreak);
 
     // Track how many seconds since last notification update
     let secondsSinceNotificationUpdate = 0;
 
-    timerInterval = setInterval(() => {
-      timeRemaining--;
-      secondsSinceNotificationUpdate++;
+    // Using performance.now() for more accurate timing
+    const startTime = window.performance.now();
+    // Only use expected end time if we haven't passed the limit yet
+    const expectedEndTime = !hasPassedTimeLimit ? startTime + (timeRemaining * 1000) : null;
+    let lastUpdateTime = startTime;
+    let overtimeSeconds = hasPassedTimeLimit ? Math.abs(timeRemaining) : 0;
 
-      // Update displays
-      timerDisplay.textContent = formatTime(timeRemaining);
-      updateRadialTimer(timeRemaining, totalTime);
+    // Function to update timer display
+    const updateTimer = () => {
+      const currentTime = window.performance.now();
+      const elapsedSeconds = Math.floor((currentTime - lastUpdateTime) / 1000);
 
-      // Update notification every minute
-      if (secondsSinceNotificationUpdate >= NOTIFICATION_UPDATE_INTERVAL) {
-        updateTimerNotification(timeRemaining, isBreak);
-        secondsSinceNotificationUpdate = 0;
-      }
+      // Only update if at least a second has passed
+      if (elapsedSeconds >= 1) {
+        lastUpdateTime = currentTime;
+        secondsSinceNotificationUpdate += elapsedSeconds;
 
-      // Check if timer has finished
-      if (timeRemaining <= 0) {
-        clearInterval(timerInterval);
-        isTimerRunning = false;
-        startBtn.textContent = "Start";
-        startBtn.classList.remove("paused");
+        if (!hasPassedTimeLimit) {
+          // Update time remaining based on actual elapsed time
+          timeRemaining -= elapsedSeconds;
 
-        // Clear any active timer notification
-        clearTimerNotification();
+          // Check if we've passed the time limit
+          if (timeRemaining <= 0) {
+            hasPassedTimeLimit = true;
+            overtimeSeconds = Math.abs(timeRemaining);
 
-        // Play sound and vibrate when timer finishes
-        playNotificationAlert();
+            // Play sound and vibrate when timer finishes
+            playNotificationAlert();
 
-        if (isBreak) {
-          // If break is over, move to next pomodoro
-          completeBreak();
-          isBreak = false;
-          if (currentPomodoro < 4) {
-            currentPomodoro++;
-            currentPomodoroDisplay.textContent = currentPomodoro;
-            createNewPomodoro();
+            // Send notification but keep the timer running
+            if (Notification.permission === "granted") {
+              const phaseType = isBreak
+                ? `${currentPomodoro % 4 === 0 ? "Long" : "Short"} break`
+                : "Pomodoro";
+
+              new Notification(`${phaseType} Complete!`, {
+                body: `Time's up! Timer will continue running for tracking.`,
+                icon: "/static/icon-192x192.png",
+                badge: "/static/icon-192x192.png",
+                tag: "overtime-notification",
+                renotify: true,
+              });
+            }
+
+            // Check if we've completed 4 pomodoros
+            if (!isBreak && currentPomodoro >= 4) {
+              // Mark session as completed but keep timer running
+              completePomodoro();
+              updateSessionStatus("completed", currentPomodoro * pomodoroLength, currentPomodoro);
+            }
           }
-          timeRemaining = pomodoroLength;
-          radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
         } else {
-          // If pomodoro is over, move to break
-          completePomodoro();
-          isBreak = true;
-          timeRemaining =
-            currentPomodoro % 4 === 0 ? longBreakLength : shortBreakLength;
-          radialTimer.style.stroke = "#3498db"; // Blue for break
-          createNewBreak();
-
-          // Show notification
-          if (Notification.permission === "granted") {
-            const breakType = currentPomodoro % 4 === 0 ? "long" : "short";
-            new Notification("Pomodoro Complete!", {
-              body: `Time for a ${breakType} break. Click to return to app.`,
-              icon: "/static/icon-192x192.png",
-              badge: "/static/icon-192x192.png",
-              tag: "pomodoro-notification",
-              renotify: true,
-            });
-          }
+          // In overtime, just increment the overtime counter
+          overtimeSeconds += elapsedSeconds;
         }
 
-        timerDisplay.textContent = formatTime(timeRemaining);
-        updateRadialTimer(timeRemaining, timeRemaining);
+        // Format display time differently when in overtime
+        let displayTime;
+        if (hasPassedTimeLimit) {
+          displayTime = "-" + formatTime(overtimeSeconds);
+        } else {
+          displayTime = formatTime(Math.max(0, timeRemaining));
+        }
+
+        // Update displays
+        timerDisplay.textContent = displayTime;
+
+        // For radial timer, show either remaining time or full circle in overtime
+        if (!hasPassedTimeLimit) {
+          updateRadialTimer(Math.max(0, timeRemaining), totalTime);
+        } else {
+          // In overtime, keep the circle completely filled
+          radialTimer.style.strokeDashoffset = 0;
+        }
+
+        // Update notification every minute
+        if (secondsSinceNotificationUpdate >= NOTIFICATION_UPDATE_INTERVAL) {
+          if (hasPassedTimeLimit) {
+            // Update with overtime information
+            updateTimerNotification(-overtimeSeconds, isBreak);
+          } else {
+            updateTimerNotification(timeRemaining, isBreak);
+          }
+          secondsSinceNotificationUpdate = 0;
+        }
       }
-    }, 1000);
+
+      // Schedule next update based on the difference between expected and actual time
+      const nextUpdateDelay = Math.max(16, 1000 - (window.performance.now() % 1000));
+      timerInterval = setTimeout(updateTimer, nextUpdateDelay);
+    };
+
+    // Start the timer loop with initial update
+    timerInterval = setTimeout(updateTimer, 1000);
   }
 
   // Pause the timer
@@ -655,7 +697,96 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function skipTimer() {
+    if (!isTimerRunning && !isPaused) return;
 
+    // Show confirmation modal
+    confirmModal.querySelector(".modal-message").textContent =
+      `Are you sure you want to skip the current ${isBreak ? "break" : "pomodoro"}?`;
+
+    // Set up confirm button action
+    const confirmBtn = confirmModal.querySelector(".confirm-btn");
+    confirmBtn.onclick = function () {
+      confirmModal.close();
+      executeSkipTimer();
+    };
+
+    // Set up cancel button action
+    const cancelBtn = confirmModal.querySelector(".cancel-btn");
+    cancelBtn.onclick = function () {
+      confirmModal.close();
+    };
+
+    confirmModal.showModal();
+  }
+
+  // Modified executeSkipTimer to handle end of 4 pomodoros
+  function executeSkipTimer() {
+    clearTimeout(timerInterval);
+
+    // Update current timer in database
+    if (isBreak) {
+      updateBreakStatus("skipped");
+    } else {
+      updatePomodoroStatus("skipped");
+    }
+
+    // Check if we've completed 4 pomodoros
+    const completingFourthPomodoro = !isBreak && currentPomodoro === 4;
+
+    // Transition to next phase
+    if (isBreak) {
+      // If in break, move to next pomodoro
+      isBreak = false;
+      if (currentPomodoro < 4) {
+        currentPomodoro++;
+        currentPomodoroDisplay.textContent = currentPomodoro;
+      }
+      timeRemaining = pomodoroLength;
+      radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
+      createNewPomodoro();
+    } else {
+      // If in pomodoro, move to break
+      isBreak = true;
+      timeRemaining = currentPomodoro % 4 === 0 ? longBreakLength : shortBreakLength;
+      radialTimer.style.stroke = "#3498db"; // Blue for break
+      createNewBreak();
+
+      // If we've completed the 4th pomodoro, mark session as completed
+      if (completingFourthPomodoro) {
+        updateSessionStatus("completed", 4 * pomodoroLength, 4);
+      }
+    }
+
+    // Update timer display
+    timerDisplay.textContent = formatTime(timeRemaining);
+    updateRadialTimer(timeRemaining, timeRemaining);
+
+    // If timer was running, restart it
+    if (isTimerRunning) {
+      isTimerRunning = false; // Reset so startTimer doesn't return early
+      startTimer();
+    } else if (isPaused) {
+      isPaused = false;
+      startBtn.textContent = "Start";
+      startBtn.classList.remove("paused");
+    }
+
+    // Clear any notifications and update UI
+    clearTimerNotification();
+
+    // If we're transitioning to a break, show notification
+    if (isBreak && Notification.permission === "granted") {
+      const breakType = currentPomodoro % 4 === 0 ? "long" : "short";
+      new Notification("Pomodoro Skipped", {
+        body: `Moving to a ${breakType} break.`,
+        icon: "/static/icon-192x192.png",
+        badge: "/static/icon-192x192.png",
+        tag: "pomodoro-notification",
+        renotify: true,
+      });
+    }
+  }
   // Stop the timer (with confirmation)
   function stopTimer() {
     // Only show confirmation if timer is running or paused
@@ -836,8 +967,26 @@ document.addEventListener("DOMContentLoaded", () => {
   function completePomodoro() {
     // Only update if we have a pomodoro ID
     if (!currentPomodoroId) return;
+
+    // Get the actual time worked (could be more than pomodoroLength)
+    const actualTimeWorked = pomodoroLength - Math.min(timeRemaining, pomodoroLength);
+
+    // Update pomodoro with actual time worked
+    const now = new Date().toISOString();
+    fetch(`/api/pomodoros/${currentPomodoroId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        end_time: now,
+        duration: actualTimeWorked,
+        status: "completed",
+      }),
+    })
+      .then((response) => response.json())
+      .catch((error) => console.error("Error updating pomodoro:", error));
+
+    // Update session progress
     updateSessionProgress();
-    updatePomodoroStatus("completed");
   }
 
   function updatePomodoroStatus(status) {
@@ -923,13 +1072,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Calculate completed pomodoros
     const completedPomodoros = Math.max(0, currentPomodoro - (isBreak ? 0 : 1));
-    const totalTime = completedPomodoros * pomodoroLength;
 
-    updateSessionStatus(
-      completedPomodoros >= 4 ? "completed" : "in-progress",
-      totalTime,
-      completedPomodoros,
-    );
+    // Get actual time for current pomodoro if it's in progress
+    let actualTimeWorked = completedPomodoros * pomodoroLength;
+
+    // Add actual time from current pomodoro if it's not a break
+    if (!isBreak && timeRemaining < pomodoroLength) {
+      actualTimeWorked += (pomodoroLength - Math.min(timeRemaining, pomodoroLength));
+    }
+
+    // Update session status
+    const status = completedPomodoros >= 4 ? "completed" : "in-progress";
+    updateSessionStatus(status, actualTimeWorked, completedPomodoros);
   }
 
   function updateSessionStatus(status, totalTime = 0, completedPomodoros = 0) {
@@ -1055,6 +1209,11 @@ document.addEventListener("DOMContentLoaded", () => {
       startTimer();
     }
   });
+
+  const skipBtn = document.querySelector(".skip-btn");
+  if (skipBtn) {
+    skipBtn.addEventListener("click", skipTimer);
+  }
 
   if (stopBtn) {
     stopBtn.addEventListener("click", stopTimer);

@@ -17,7 +17,7 @@
     <!-- Add auth.js script -->
     <script src="/static/auth.js"></script>
     <script src="/static/navbar.js"></script>
-    
+
     <!-- Preload notification sound -->
     <link rel="preload" href="/static/notification.mp3" as="audio">
 </head>
@@ -44,11 +44,12 @@
                         <div class="pomodoro-counter">
                             <span id="current-pomodoro">1</span>/4 Pomodoros
                         </div>
-
+                        <!-- Add the skip button to your timer controls in index.html -->
                         <div class="timer-controls">
                             <button class="start-btn">Start</button>
                             <button class="stop-btn">Stop</button>
                             <button class="reset-btn">Reset</button>
+                            <button class="skip-btn">Skip</button>
                         </div>
 
                         <div class="sound-toggle">
@@ -116,12 +117,12 @@
             navigator.serviceWorker.register('/static/service-worker.js')
                 .then(reg => {
                     console.log('Service Worker registered');
-                    
+
                     // Request notification permission
                     if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
                         Notification.requestPermission();
                     }
-                    
+
                     // Clear badge counter when page is opened
                     if ('clearAppBadge' in navigator) {
                         navigator.clearAppBadge().catch(err => console.log('Could not clear badge:', err));
@@ -129,10 +130,10 @@
                 })
                 .catch(err => console.log('Service Worker registration failed:', err));
         }
-        
+
         // Create the notification.mp3 file if it doesn't exist yet
         // This would be replaced by actually creating the file on the server
-        document.addEventListener("DOMContentLoaded", function() {
+        document.addEventListener("DOMContentLoaded", function () {
             // In a real implementation, you would ensure the notification.mp3 file exists
             // Here we're just ensuring the audio element is properly initialized
             const notificationSound = document.getElementById("notification-sound");
@@ -140,14 +141,15 @@
                 notificationSound.load();
             }
             
+
             // Initialize sound toggle from localStorage
             const soundEnabled = document.getElementById("sound-enabled");
             if (soundEnabled) {
                 const savedPreference = localStorage.getItem("sound-enabled");
                 soundEnabled.checked = savedPreference === null ? true : savedPreference === "true";
-                
+
                 // Save sound preference when changed
-                soundEnabled.addEventListener("change", function() {
+                soundEnabled.addEventListener("change", function () {
                     localStorage.setItem("sound-enabled", this.checked);
                 });
             }
