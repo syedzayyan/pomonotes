@@ -24,29 +24,87 @@
             overflow-x: hidden;
         }
         
-        /* Make heatmap dimensions match weekly chart */
+        /* Enhanced Heatmap Styling with Improved Scrolling */
         .heatmap-section {
             max-width: 100%;
-            margin: 0 auto;
+            margin: 0;
+            overflow: hidden; /* Contain overflow within section */
         }
-        
+
         .heatmap-scroll-wrapper {
             padding-bottom: 8px;
             margin-top: 5px;
-            min-height: 250px;
-            max-height: 350px;
+            flex: 1;
+            overflow-x: auto; /* Enable horizontal scrolling */
+            overflow-y: hidden;
+            scrollbar-width: thin; /* For Firefox */
+            -ms-overflow-style: -ms-autohiding-scrollbar; /* For IE/Edge */
+            position: relative; /* Create stacking context for tooltips */
+            
+            /* Smooth scroll behavior */
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch; /* Smooth scroll on iOS */
         }
-        
+
+        /* Customize scrollbar for webkit browsers */
+        .heatmap-scroll-wrapper::-webkit-scrollbar {
+            height: 6px;
+        }
+
+        .heatmap-scroll-wrapper::-webkit-scrollbar-track {
+            background: var(--card-section-bg);
+            border-radius: 3px;
+        }
+
+        .heatmap-scroll-wrapper::-webkit-scrollbar-thumb {
+            background-color: var(--primary);
+            border-radius: 3px;
+        }
+
         .heatmap-inner {
             display: flex;
             flex-direction: column;
-            /* Make width more responsive */
-            min-width: 0;
+            min-width: 700px; /* Default size */
             max-width: 100%;
-            width: 100%;
             margin: 0 auto;
         }
+
+        /* Month labels - CONDENSED VERSION */
+        .month-labels {
+            display: flex;
+            margin-left: 25px;
+            margin-bottom: 4px;
+            color: var(--color);
+            font-size: 12px;
+            height: 16px; /* Fixed height */
+        }
         
+        .month-label-spacer {
+            flex-shrink: 0;
+            width: 25px;
+        }
+        
+        .month-container {
+            display: flex;
+            flex: 1;
+            position: relative;
+            height: 16px; /* Fixed height */
+        }
+        
+        .month-marker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            font-weight: 500;
+            text-align: left;
+            padding-left: 2px; /* Reduced padding */
+            border-left: 1px dashed rgba(127, 127, 127, 0.3);
+            height: 16px;
+            line-height: 16px; /* Line height matches height */
+            display: flex;
+            align-items: center;
+        }
+
         /* Make the day cells match the size of the hourly chart */
         .day {
             width: 30px;
@@ -180,13 +238,55 @@
         }
         
         /* Responsive adjustments */
-        @media (max-width: 768px) {
+        @media (max-width: 850px) {
+            .heatmap-inner {
+                min-width: 550px; /* Medium screens */
+            }
+            
             .hour-heatmap {
                 grid-template-columns: repeat(24, minmax(20px, 1fr));
             }
             
             .hour-labels {
                 grid-template-columns: repeat(24, minmax(20px, 1fr));
+            }
+        }
+        
+        @media (max-width: 650px) {
+            .heatmap-inner {
+                min-width: 400px; /* Smaller for mobile */
+            }
+            
+            /* Reduce size for better mobile view */
+            .day {
+                width: 10px;
+                height: 10px;
+            }
+            
+            .day-labels div {
+                height: 10px;
+                line-height: 10px;
+                margin-bottom: 3px;
+            }
+            
+            .week {
+                grid-template-rows: repeat(7, 10px);
+                gap: 3px;
+            }
+            
+            .heatmap {
+                gap: 3px;
+            }
+            
+            /* Add horizontal scroll indicator for mobile */
+            .heatmap-section article::after {
+                content: "⟷ Scroll";
+                display: block;
+                text-align: center;
+                font-size: 12px;
+                opacity: 0.7;
+                margin-top: 4px;
+                color: var(--muted-color);
             }
         }
     </style>
@@ -299,24 +399,12 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
-            // Initialize weekly chart placeholder (if needed)
-            initWeeklyChart();
-            
             // Initialize heatmap
             initHeatmap();
             
             // Initialize hour heatmap
             initHourHeatmap();
             
-            // Basic weekly chart initialization
-            function initWeeklyChart() {
-                const weeklyChart = document.getElementById("weekly-chart");
-                if (!weeklyChart) return;
-                
-                // You would add your weekly chart rendering code here
-                // This is just a placeholder since the original code snippet didn't include it
-            }
-
             // Initialize heatmap function
             function initHeatmap() {
                 const heatmap = document.getElementById("heatmap");
@@ -328,11 +416,6 @@
                 // Clear existing content
                 heatmap.innerHTML = '';
                 monthLabels.innerHTML = '';
-
-                // Add a spacer for alignment
-                const spacer = document.createElement("div");
-                spacer.innerHTML = "&nbsp;";
-                monthLabels.appendChild(spacer);
 
                 const MS_PER_DAY = 24 * 60 * 60 * 1000;
                 const DAYS_IN_WEEK = 7;
@@ -379,7 +462,7 @@
                     });
             }
 
-            // Build the heatmap with the given data
+            // Build the heatmap with the given data - IMPROVED VERSION WITH CONDENSED LABELS
             function buildHeatmap(startDate, endDate, activityMap, heatmap, monthLabels, tooltip) {
                 // Group dates by week
                 const dates = [];
@@ -426,47 +509,45 @@
                     }
                 }
 
-                // Add month labels
-                const visibleMonths = new Set();
-                const monthPositions = {};
-
-                // First identify which months are visible and their positions
+                // Clear existing elements
+                monthLabels.innerHTML = '';
+                heatmap.innerHTML = '';
+                
+                // Create month labels container
+                const monthContainer = document.createElement('div');
+                monthContainer.classList.add('month-container');
+                
+                // Create a spacer for the day labels column
+                const spacer = document.createElement("div");
+                spacer.classList.add("month-label-spacer");
+                monthLabels.appendChild(spacer);
+                monthLabels.appendChild(monthContainer);
+                
+                // Track months for label placement
+                let lastMonth = null;
+                
+                // Add month markers at the start of each month
                 weeks.forEach((weekDates, weekIndex) => {
-                    weekDates.forEach(date => {
-                        if (date) {
-                            const month = date.getMonth();
-                            const day = date.getDate();
-
-                            // Only register the first day of each month
-                            if (day === 1) {
-                                visibleMonths.add(month);
-                                monthPositions[month] = weekIndex;
-                            }
-                        }
-                    });
-                });
-
-                // Now add labels only for visible months, at their correct positions
-                // Add spacer divs for each week
-                weeks.forEach((_, weekIndex) => {
-                    const label = document.createElement("div");
-
-                    // Check if any month starts in this week
-                    let found = false;
-                    for (const [month, position] of Object.entries(monthPositions)) {
-                        if (parseInt(position) === weekIndex) {
-                            const monthName = new Date(2000, parseInt(month), 1).toLocaleString('default', {month: 'short'});
-                            label.innerText = monthName;
-                            found = true;
-                            break;
-                        }
+                    // Find the first valid date in this week
+                    const firstValidDate = weekDates.find(date => date !== null);
+                    if (!firstValidDate) return;
+                    
+                    const month = firstValidDate.getMonth();
+                    
+                    // If this is a new month, add a month marker
+                    if (month !== lastMonth) {
+                        const monthName = firstValidDate.toLocaleString('default', {month: 'short'});
+                        const monthMarker = document.createElement('div');
+                        monthMarker.classList.add('month-marker');
+                        monthMarker.textContent = monthName;
+                        
+                        // Calculate position - each week is approximately (100 / weeks.length)% of the width
+                        const position = (weekIndex / weeks.length) * 100;
+                        monthMarker.style.left = `${position * 0.71}%`;
+                        
+                        monthContainer.appendChild(monthMarker);
+                        lastMonth = month;
                     }
-
-                    if (!found) {
-                        label.innerHTML = "&nbsp;";
-                    }
-
-                    monthLabels.appendChild(label);
                 });
 
                 // Build heatmap cells
@@ -486,11 +567,6 @@
                             const minutesWorked = activityMap[dateKey] || 0;
 
                             // Determine level based on minutes worked
-                            // Level 0: 0 minutes (empty)
-                            // Level 1: 1-30 minutes
-                            // Level 2: 31-60 minutes
-                            // Level 3: 61-120 minutes
-                            // Level 4: 120+ minutes
                             let level = 0;
                             if (minutesWorked > 0) {
                                 if (minutesWorked <= 30) level = 1;
@@ -605,7 +681,7 @@
             
             // Build the hour heatmap with the given data
             function buildHourHeatmap(days, hourlyActivityMap, dayLabels, hourHeatmap) {
-                                        // Add day labels with weekday and date on separate lines
+                // Add day labels with weekday and date on separate lines
                 days.forEach(day => {
                     const dayLabel = document.createElement('div');
                     dayLabel.classList.add('hour-day-label');
