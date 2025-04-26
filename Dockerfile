@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the Go app
-RUN go build -o pomonotes *.go
+RUN go build -o pomonotes cmd/server/main.go
 # Final image
 FROM debian:bookworm-slim
 
