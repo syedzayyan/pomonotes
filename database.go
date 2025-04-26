@@ -1,10 +1,17 @@
 package main
 
 import (
-	"database/sql"
-	"fmt"
-	"strings"
-	_ "github.com/mattn/go-sqlite3"
+    "crypto/rand"
+    "database/sql"
+    "encoding/base64"
+    "errors"
+    "fmt"
+    "log"
+    "strings"
+    "time"
+    
+    _ "github.com/mattn/go-sqlite3"
+    "golang.org/x/crypto/bcrypt"
 )
 
 var db *sql.DB
@@ -56,6 +63,26 @@ type Tag struct {
 	UsageCount int  `json:"usage_count"`
 }
 
+// User struct
+type User struct {
+	ID           int     `json:"id"`
+	Username     string  `json:"username"`
+	PasswordHash string  `json:"-"` // Never send to client
+	Email        *string `json:"email"`
+	IsAdmin      bool    `json:"is_admin"`
+	CreatedAt    string  `json:"created_at"`
+	LastLogin    *string `json:"last_login"`
+	AccountStatus string  `json:"account_status"`
+}
+
+// For registration and updating users
+type UserInput struct {
+	Username string  `json:"username"`
+	Password string  `json:"password"`
+	Email    *string `json:"email"`
+	IsAdmin  bool    `json:"is_admin"`
+}
+
 // Initialize the database with tables if not already created
 func initDB() {
     var err error
@@ -92,7 +119,8 @@ func createInitialSchema() {
                 total_time INTEGER DEFAULT 0,
                 status TEXT,
                 completed_pomodoros INTEGER DEFAULT 0,
-                tags TEXT
+                tags TEXT,
+                user_id INTEGER DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL
             )
         `,
         "pomodoros": `
@@ -140,13 +168,56 @@ func createInitialSchema() {
                 usage_count INTEGER DEFAULT 0
             )
         `,
+        "users": `
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                email TEXT UNIQUE,
+                is_admin BOOLEAN DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                last_login TEXT,
+                account_status TEXT DEFAULT 'active'
+            )
+        `,
+        "session_tags": `
+            CREATE TABLE IF NOT EXISTS session_tags (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                tag_id INTEGER NOT NULL,
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE,
+                UNIQUE(session_id, tag_id)
+            )
+        `,
     }
     
     // Execute each table creation query
     for tableName, query := range tableQueries {
         _, err := db.Exec(query)
         if err != nil {
-            fmt.Printf("Error creating %s table: %v\n", tableName, err)
+            log.Printf("Error creating %s table: %v\n", tableName, err)
+        } else {
+            log.Printf("Created or verified %s table\n", tableName)
+        }
+    }
+    
+    // Create indexes for better performance
+    indexQueries := map[string]string{
+        "idx_session_start_time": "CREATE INDEX IF NOT EXISTS idx_session_start_time ON sessions(start_time)",
+        "idx_session_user_id": "CREATE INDEX IF NOT EXISTS idx_session_user_id ON sessions(user_id)",
+        "idx_session_tags_session_id": "CREATE INDEX IF NOT EXISTS idx_session_tags_session_id ON session_tags(session_id)",
+        "idx_session_tags_tag_id": "CREATE INDEX IF NOT EXISTS idx_session_tags_tag_id ON session_tags(tag_id)",
+        "idx_users_username": "CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)",
+    }
+    
+    // Execute each index creation query
+    for indexName, query := range indexQueries {
+        _, err := db.Exec(query)
+        if err != nil {
+            log.Printf("Error creating %s index: %v\n", indexName, err)
+        } else {
+            log.Printf("Created or verified %s index\n", indexName)
         }
     }
 }
@@ -154,11 +225,6 @@ func createInitialSchema() {
 // Define and run migrations
 func migrateSchema() {
     // List of migrations to run
-    // Each migration is a struct with:
-    // - table: the table to modify
-    // - check: SQL to check if migration is needed
-    // - migration: SQL to run the migration
-    // - description: human-readable description
     migrations := []struct {
         table       string
         check       string
@@ -177,14 +243,25 @@ func migrateSchema() {
             migration:   "ALTER TABLE pomodoros ADD COLUMN notes TEXT",
             description: "Add notes column to pomodoros table",
         },
-        // Example of another potential migration
         {
             table:       "sessions",
             check:       "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='project_id'",
             migration:   "ALTER TABLE sessions ADD COLUMN project_id INTEGER DEFAULT NULL",
             description: "Add project_id column to sessions table",
         },
-        // Add future migrations here as needed
+        // New migrations for the user management system
+        {
+            table:       "sessions",
+            check:       "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name='user_id'",
+            migration:   "ALTER TABLE sessions ADD COLUMN user_id INTEGER DEFAULT NULL REFERENCES users(id) ON DELETE SET NULL",
+            description: "Add user_id column to sessions table for ownership",
+        },
+        {
+            table:       "users",
+            check:       "SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='account_status'",
+            migration:   "ALTER TABLE users ADD COLUMN account_status TEXT DEFAULT 'active'",
+            description: "Add account_status column to users table",
+        },
     }
 
     // Run each migration if needed
@@ -193,7 +270,7 @@ func migrateSchema() {
         row := db.QueryRow(m.check)
         err := row.Scan(&count)
         if err != nil {
-            fmt.Printf("Error checking migration for %s (%s): %v\n", 
+            log.Printf("Error checking migration for %s (%s): %v\n", 
                 m.table, m.description, err)
             continue
         }
@@ -202,10 +279,10 @@ func migrateSchema() {
             // Column doesn't exist, apply migration
             _, err = db.Exec(m.migration)
             if err != nil {
-                fmt.Printf("Error applying migration to %s (%s): %v\n", 
+                log.Printf("Error applying migration to %s (%s): %v\n", 
                     m.table, m.description, err)
             } else {
-                fmt.Printf("Migration applied: %s\n", m.description)
+                log.Printf("Migration applied: %s\n", m.description)
             }
         }
     }
@@ -911,4 +988,314 @@ func getMonthlyTagStats(year int) (map[string]map[string]int, error) {
 	}
 	
 	return stats, nil
+}
+
+
+func createUser(input UserInput) (int64, error) {
+	// Hash the password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return 0, err
+	}
+
+	// Insert user into database
+	stmt, err := db.Prepare("INSERT INTO users (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return 0, err
+	}
+	defer stmt.Close()
+
+	result, err := stmt.Exec(input.Username, string(passwordHash), input.Email, input.IsAdmin)
+	if err != nil {
+		return 0, err
+	}
+
+	return result.LastInsertId()
+}
+
+// Get user by ID
+func getUserByID(id int) (User, error) {
+	var user User
+	row := db.QueryRow("SELECT id, username, password_hash, email, is_admin, created_at, last_login, account_status FROM users WHERE id = ?", id)
+	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Email, &user.IsAdmin, &user.CreatedAt, &user.LastLogin, &user.AccountStatus)
+	return user, err
+}
+
+// Get user by username
+func getUserByUsername(username string) (User, error) {
+	var user User
+	row := db.QueryRow("SELECT id, username, password_hash, email, is_admin, created_at, last_login, account_status FROM users WHERE username = ?", username)
+	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Email, &user.IsAdmin, &user.CreatedAt, &user.LastLogin, &user.AccountStatus)
+	return user, err
+}
+
+// Get all users (for admin use)
+func getAllUsers() ([]User, error) {
+	rows, err := db.Query("SELECT id, username, password_hash, email, is_admin, created_at, last_login, account_status FROM users ORDER BY username")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Email, &user.IsAdmin, &user.CreatedAt, &user.LastLogin, &user.AccountStatus); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+// Update user
+func updateUser(id int, input UserInput) error {
+	// If password is provided, hash it
+	if input.Password != "" {
+		passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		
+		_, err = db.Exec("UPDATE users SET username = ?, password_hash = ?, email = ?, is_admin = ? WHERE id = ?",
+			input.Username, string(passwordHash), input.Email, input.IsAdmin, id)
+		return err
+	} else {
+		// Don't update password if not provided
+		_, err := db.Exec("UPDATE users SET username = ?, email = ?, is_admin = ? WHERE id = ?",
+			input.Username, input.Email, input.IsAdmin, id)
+		return err
+	}
+}
+
+// Delete user (soft delete)
+func softDeleteUser(id int) error {
+	_, err := db.Exec("UPDATE users SET account_status = 'deleted' WHERE id = ?", id)
+	return err
+}
+
+// Hard delete user
+func hardDeleteUser(id int) error {
+	_, err := db.Exec("DELETE FROM users WHERE id = ?", id)
+	return err
+}
+
+// Update last login time
+func updateLastLogin(id int) error {
+	now := time.Now().Format(time.RFC3339)
+	_, err := db.Exec("UPDATE users SET last_login = ? WHERE id = ?", now, id)
+	return err
+}
+
+// Check credentials
+func validateCredentials(username, password string) (User, error) {
+	user, err := getUserByUsername(username)
+	if err != nil {
+		return User{}, errors.New("invalid credentials")
+	}
+	
+	// Check account status
+	if user.AccountStatus != "active" {
+		return User{}, errors.New("account is not active")
+	}
+
+	// Check password
+	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
+	if err != nil {
+		return User{}, errors.New("invalid credentials")
+	}
+
+	return user, nil
+}
+
+// Generate a secure random password
+func generateSecurePassword(length int) (string, error) {
+	if length < 8 {
+		length = 8 // Minimum secure password length
+	}
+	
+	bytes := make([]byte, length)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", err
+	}
+	
+	return base64.URLEncoding.EncodeToString(bytes)[:length], nil
+}
+
+
+func createSessionWithUser(startTime string, tags string, userID int) (int64, error) {
+	statement, err := db.Prepare("INSERT INTO sessions(start_time, status, completed_pomodoros, tags, user_id) VALUES (?, ?, ?, ?, ?)")
+	if err != nil {
+		return 0, err
+	}
+	result, err := statement.Exec(startTime, "running", 0, tags, userID)
+	if err != nil {
+		return 0, err
+	}
+	
+	// Update tag usage counts
+	if tags != "" {
+		updateTagCounts(tags)
+	}
+	
+	return result.LastInsertId()
+}
+
+
+func getSessionsForUser(userID int) ([]Session, error) {
+	rows, err := db.Query("SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags FROM sessions WHERE user_id = ? OR user_id IS NULL ORDER BY id DESC", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		// Scan using the nullable type for tags
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+func getSessionsByDateRangeForUser(startDate string, endDate string, userID int) ([]Session, error) {
+	query := `
+		SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags 
+		FROM sessions 
+		WHERE (user_id = ? OR user_id IS NULL) 
+		AND start_time >= ? AND start_time <= ? 
+		ORDER BY start_time
+	`
+	rows, err := db.Query(query, userID, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+func getSessionsByTagForUser(tag string, userID int) ([]Session, error) {
+	// Using LIKE with wildcards to match tag in the comma-separated list
+	query := `
+		SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags 
+		FROM sessions 
+		WHERE (user_id = ? OR user_id IS NULL)
+		AND (tags LIKE ? OR tags LIKE ? OR tags LIKE ? OR tags = ?)
+		ORDER BY start_time DESC
+	`
+	// Four patterns to match: exact match, start of list, end of list, or middle of list
+	rows, err := db.Query(query, userID, tag, tag+",%", "%,"+tag, "%,"+tag+",%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString // Use NullString to handle NULL values
+
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set tags to empty string if NULL or the actual value if not NULL
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
+}
+
+
+func isSessionOwner(sessionID int, userID int) (bool, error) {
+	var ownerID sql.NullInt64
+	err := db.QueryRow("SELECT user_id FROM sessions WHERE id = ?", sessionID).Scan(&ownerID)
+	if err != nil {
+		return false, err
+	}
+	
+	// Either the session has no owner (NULL user_id) or the user is the owner
+	return !ownerID.Valid || (ownerID.Valid && int(ownerID.Int64) == userID), nil
+}
+
+// Add this to database.go
+func getSessionsByDaysForUser(days int, userID int) ([]Session, error) {
+	// Calculate start date (n days ago)
+	now := time.Now()
+	startDate := now.AddDate(0, 0, -days).Format("2006-01-02T15:04:05.999Z")
+	
+	query := `
+		SELECT id, start_time, end_time, total_time, status, completed_pomodoros, tags 
+		FROM sessions 
+		WHERE (user_id = ? OR user_id IS NULL)
+		AND start_time >= ? 
+		ORDER BY start_time DESC
+	`
+	
+	rows, err := db.Query(query, userID, startDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []Session
+	for rows.Next() {
+		var session Session
+		var tagsNullable sql.NullString
+
+		err := rows.Scan(&session.ID, &session.StartTime, &session.EndTime, &session.TotalTime, &session.Status, &session.Completed, &tagsNullable)
+		if err != nil {
+			return nil, err
+		}
+
+		if tagsNullable.Valid {
+			session.Tags = tagsNullable.String
+		} else {
+			session.Tags = ""
+		}
+
+		sessions = append(sessions, session)
+	}
+	return sessions, nil
 }

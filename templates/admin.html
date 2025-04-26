@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Management - PomoNotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="/static/js/htmx.min.js"></script>
+</head>
+<body>
+    <nav class="container">
+        <ul>
+            <li><a href="/" class="contrast"><strong>PomoNotes</strong></a></li>
+        </ul>
+        <ul>
+            <li><a href="/admin">Dashboard</a></li>
+            <li><a href="/admin/users" class="active">Users</a></li>
+            <li><a href="/" data-tooltip="Return to App">App</a></li>
+            <li>
+                <a href="#" class="contrast" onclick="logout()">Logout</a>
+            </li>
+        </ul>
+    </nav>
+
+    <main class="container">
+        <h1>User Management</h1>
+        
+        <div class="grid">
+            <div>
+                <button id="create-user-btn" onclick="showCreateUserModal()">Create New User</button>
+            </div>
+            <div>
+                <input type="text" id="search-users" placeholder="Search users..." onkeyup="filterUsers()">
+            </div>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Username</th>
+                    <th>Email</th>
+                    <th>Admin</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th>Last Login</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="users-table">
+                <tr>
+                    <td colspan="8">Loading users...</td>
+                </tr>
+            </tbody>
+        </table>
+        
+        <!-- Create User Modal -->
+        <dialog id="create-user-modal">
+            <article>
+                <header>
+                    <h3>Create New User</h3>
+                    <a href="#close" aria-label="Close" class="close" onclick="closeModals()"></a>
+                </header>
+                <form id="create-user-form" onsubmit="createUser(event)">
+                    <div class="grid">
+                        <label for="username">
+                            Username
+                            <input type="text" id="username" name="username" placeholder="Username" required>
+                        </label>
+                        <label for="email">
+                            Email
+                            <input type="email" id="email" name="email" placeholder="Email">
+                        </label>
+                    </div>
+                    <div class="grid">
+                        <label for="password">
+                            Password
+                            <input type="password" id="password" name="password" placeholder="Password" required>
+                        </label>
+                        <label for="is-admin">
+                            <input type="checkbox" id="is-admin" name="is_admin">
+                            Admin
+                        </label>
+                    </div>
+                    <footer>
+                        <button type="button" class="secondary" onclick="closeModals()">Cancel</button>
+                        <button type="submit">Create User</button>
+                    </footer>
+                </form>
+            </article>
+        </dialog>
+        
+        <!-- Edit User Modal -->
+        <dialog id="edit-user-modal">
+            <article>
+                <header>
+                    <h3>Edit User</h3>
+                    <a href="#close" aria-label="Close" class="close" onclick="closeModals()"></a>
+                </header>
+                <form id="edit-user-form" onsubmit="updateUser(event)">
+                    <input type="hidden" id="edit-user-id">
+                    <div class="grid">
+                        <label for="edit-username">
+                            Username
+                            <input type="text" id="edit-username" name="username" placeholder="Username" required>
+                        </label>
+                        <label for="edit-email">
+                            Email
+                            <input type="email" id="edit-email" name="email" placeholder="Email">
+                        </label>
+                    </div>
+                    <div class="grid">
+                        <label for="edit-password">
+                            Password (leave blank to keep current)
+                            <input type="password" id="edit-password" name="password" placeholder="New password">
+                        </label>
+                        <label for="edit-is-admin">
+                            <input type="checkbox" id="edit-is-admin" name="is_admin">
+                            Admin
+                        </label>
+                    </div>
+                    <footer>
+                        <button type="button" class="secondary" onclick="closeModals()">Cancel</button>
+                        <button type="submit">Update User</button>
+                    </footer>
+                </form>
+            </article>
+        </dialog>
+        
+        <!-- Confirm Reset Password Modal -->
+        <dialog id="reset-password-modal">
+            <article>
+                <header>
+                    <h3>Reset Password</h3>
+                    <a href="#close" aria-label="Close" class="close" onclick="closeModals()"></a>
+                </header>
+                <p>Are you sure you want to reset the password for <strong id="reset-username"></strong>?</p>
+                <p>A new random password will be generated.</p>
+                <input type="hidden" id="reset-user-id">
+                <footer>
+                    <a href="#cancel" role="button" class="secondary" onclick="closeModals()">Cancel</a>
+                    <a href="#confirm" role="button" onclick="resetPassword()">Reset Password</a>
+                </footer>
+            </article>
+        </dialog>
+        
+        <!-- New Password Display Modal -->
+        <dialog id="new-password-modal">
+            <article>
+                <header>
+                    <h3>New Password</h3>
+                    <a href="#close" aria-label="Close" class="close" onclick="closeModals()"></a>
+                </header>
+                <p>New password for <strong id="password-username"></strong>:</p>
+                <div class="grid">
+                    <input type="text" id="new-password" readonly>
+                    <button onclick="copyPassword()">Copy</button>
+                </div>
+                <p class="text-small">Make sure to securely share this password with the user.</p>
+                <footer>
+                    <a href="#close" role="button" onclick="closeModals()">Close</a>
+                </footer>
+            </article>
+        </dialog>
+        
+        <!-- Confirm Delete Modal -->
+        <dialog id="delete-user-modal">
+            <article>
+                <header>
+                    <h3>Delete User</h3>
+                    <a href="#close" aria-label="Close" class="close" onclick="closeModals()"></a>
+                </header>
+                <p>Are you sure you want to delete <strong id="delete-username"></strong>?</p>
+                <p>This action cannot be undone.</p>
+                <input type="hidden" id="delete-user-id">
+                <footer>
+                    <a href="#cancel" role="button" class="secondary" onclick="closeModals()">Cancel</a>
+                    <a href="#confirm" role="button" class="danger" onclick="deleteUser()">Delete User</a>
+                </footer>
+            </article>
+        </dialog>
+    </main>
+
+    <script>
+        let users = [];
+        
+        // Load users on page load
+        document.addEventListener('DOMContentLoaded', loadUsers);
+        
+        // Load all users from the API
+        async function loadUsers() {
+            try {
+                const response = await fetch('/admin/api/users');
+                users = await response.json();
+                renderUsers(users);
+            } catch (error) {
+                console.error('Error loading users:', error);
+                document.getElementById('users-table').innerHTML = `
+                    <tr>
+                        <td colspan="8">Error loading users. Please try again.</td>
+                    </tr>
+                `;
+            }
+        }
+        
+        // Render the users table
+        function renderUsers(usersToRender) {
+            if (!usersToRender || usersToRender.length === 0) {
+                document.getElementById('users-table').innerHTML = `
+                    <tr>
+                        <td colspan="8">No users found.</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            let html = '';
+            usersToRender.forEach(user => {
+                html += `
+                    <tr>
+                        <td>${user.id}</td>
+                        <td>${user.username}</td>
+                        <td>${user.email || '-'}</td>
+                        <td>${user.is_admin ? '✅' : '❌'}</td>
+                        <td>
+                            <span class="badge ${user.account_status === 'active' ? 'success' : 'danger'}">
+                                ${user.account_status}
+                            </span>
+                        </td>
+                        <td>${formatDate(user.created_at)}</td>
+                        <td>${user.last_login ? formatDate(user.last_login) : 'Never'}</td>
+                        <td>
+                            <div class="button-group">
+                                <button class="small" onclick="showEditUserModal(${user.id})">Edit</button>
+                                <button class="small secondary" onclick="showResetPasswordModal(${user.id}, '${user.username}')">Reset Password</button>
+                                <button class="small danger" onclick="showDeleteUserModal(${user.id}, '${user.username}')">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            document.getElementById('users-table').innerHTML = html;
+        }
+        
+        // Filter users based on search input
+        function filterUsers() {
+            const searchTerm = document.getElementById('search-users').value.toLowerCase();
+            if (!searchTerm) {
+                renderUsers(users);
+                return;
+            }
+            
+            const filteredUsers = users.filter(user => 
+                user.username.toLowerCase().includes(searchTerm) || 
+                (user.email && user.email.toLowerCase().includes(searchTerm))
+            );
+            
+            renderUsers(filteredUsers);
+        }
+        
+        // Show the create user modal
+        function showCreateUserModal() {
+            document.getElementById('create-user-form').reset();
+            document.getElementById('create-user-modal').showModal();
+        }
+        
+        // Show the edit user modal
+        function showEditUserModal(userId) {
+            const user = users.find(u => u.id === userId);
+            if (!user) return;
+            
+            document.getElementById('edit-user-id').value = user.id;
+            document.getElementById('edit-username').value = user.username;
+            document.getElementById('edit-email').value = user.email || '';
+            document.getElementById('edit-password').value = '';
+            document.getElementById('edit-is-admin').checked = user.is_admin;
+            
+            document.getElementById('edit-user-modal').showModal();
+        }
+        
+        // Show the reset password modal
+        function showResetPasswordModal(userId, username) {
+            document.getElementById('reset-user-id').value = userId;
+            document.getElementById('reset-username').textContent = username;
+            document.getElementById('reset-password-modal').showModal();
+        }
+        
+        // Show the delete user modal
+        function showDeleteUserModal(userId, username) {
+            document.getElementById('delete-user-id').value = userId;
+            document.getElementById('delete-username').textContent = username;
+            document.getElementById('delete-user-modal').showModal();
+        }
+        
+        // Close all modals
+        function closeModals() {
+            document.querySelectorAll('dialog').forEach(dialog => {
+                dialog.close();
+            });
+        }
+        
+        // Create a new user
+        async function createUser(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(document.getElementById('create-user-form'));
+            const userData = {
+                username: formData.get('username'),
+                password: formData.get('password'),
+                email: formData.get('email') || null,
+                is_admin: formData.get('is_admin') === 'on'
+            };
+            
+            try {
+                const response = await fetch('/admin/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to create user');
+                }
+                
+                closeModals();
+                loadUsers();
+            } catch (error) {
+                alert('Error creating user: ' + error.message);
+            }
+        }
+        
+        // Update an existing user
+        async function updateUser(event) {
+            event.preventDefault();
+            
+            const userId = document.getElementById('edit-user-id').value;
+            const formData = new FormData(document.getElementById('edit-user-form'));
+            
+            const userData = {
+                username: formData.get('username'),
+                email: formData.get('email') || null,
+                is_admin: formData.get('is_admin') === 'on'
+            };
+            
+            // Only include password if it's not empty
+            const password = formData.get('password');
+            if (password) {
+                userData.password = password;
+            }
+            
+            try {
+                const response = await fetch(`/admin/api/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to update user');
+                }
+                
+                closeModals();
+                loadUsers();
+            } catch (error) {
+                alert('Error updating user: ' + error.message);
+            }
+        }
+        
+        // Reset user password
+        async function resetPassword() {
+            const userId = document.getElementById('reset-user-id').value;
+            const username = document.getElementById('reset-username').textContent;
+            
+            try {
+                const response = await fetch(`/admin/api/users/${userId}/reset-password`, {
+                    method: 'POST'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to reset password');
+                }
+                
+                const result = await response.json();
+                
+                // Close reset modal and show new password
+                closeModals();
+                
+                document.getElementById('password-username').textContent = username;
+                document.getElementById('new-password').value = result.password;
+                document.getElementById('new-password-modal').showModal();
+            } catch (error) {
+                alert('Error resetting password: ' + error.message);
+            }
+        }
+        
+        // Copy password to clipboard
+        function copyPassword() {
+            const passwordField = document.getElementById('new-password');
+            passwordField.select();
+            document.execCommand('copy');
+            alert('Password copied to clipboard!');
+        }
+        
+        // Delete a user
+        async function deleteUser() {
+            const userId = document.getElementById('delete-user-id').value;
+            
+            try {
+                const response = await fetch(`/admin/api/users/${userId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Failed to delete user');
+                }
+                
+                closeModals();
+                loadUsers();
+            } catch (error) {
+                alert('Error deleting user: ' + error.message);
+            }
+        }
+        
+        // Format date for display
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+        
+        // Logout function
+        function logout() {
+            fetch('/api/logout', {
+                method: 'POST',
+                credentials: 'same-origin'
+            }).then(() => {
+                window.location.href = '/login';
+            }).catch(error => {
+                console.error('Logout failed:', error);
+            });
+        }
+    </script>
+</body>
+</html>

@@ -4,34 +4,58 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// Update this in routes.go
+
 func setupRoutes(e *echo.Echo) {
-	// Serve static files (CSS, JS, etc.)
+	// Serve static files
 	e.Static("/static", "static")
 
-	// Authentication routes - these don't need auth protection
+	// Public routes
 	e.POST("/api/login", loginHandler)
 	e.GET("/api/auth/status", authStatusHandler, optionalAuth)
-	e.GET("/login", loginPage) // Dedicated login page
+	e.GET("/login", loginPage)
+	e.POST("/api/logout", logoutHandler)
 
 	// Create a group for routes that require authentication
 	authGroup := e.Group("")
 	authMiddleware := configureJWTMiddleware()
 	authGroup.Use(authMiddleware)
 
-	// Serve the homepage and other HTML pages - protected routes
+	// User routes
+	authGroup.GET("/api/user/current", getCurrentUserHandler)
+
+	// Admin routes group - requires admin privileges
+	adminGroup := authGroup.Group("/admin")
+	adminGroup.Use(requireAdmin)
+	
+	// Admin API routes
+	adminGroup.GET("/api/users", getAllUsersHandler)
+	adminGroup.POST("/api/users", createUserHandler)
+	adminGroup.PUT("/api/users/:id", updateUserHandler)
+	adminGroup.DELETE("/api/users/:id", deleteUserHandler)
+	adminGroup.PUT("/api/users/:id/admin", setAdminHandler)
+	adminGroup.POST("/api/users/:id/reset-password", resetPasswordHandler)
+	
+	// Admin pages
+	adminGroup.GET("", adminDashboardPage)
+	adminGroup.GET("/users", func(c echo.Context) error {
+		return c.File("templates/admin_users.html")
+	})
+
+	// Protected pages
 	authGroup.GET("/", homepage)
 	authGroup.GET("/history", historyPage)
 	authGroup.GET("/notes", notesPage)
 	authGroup.GET("/activities", activitiesPage)
-	authGroup.GET("/tags", tagsManagementPage) // New tags management page
-
+	authGroup.GET("/tags", tagsManagementPage)
+	
 	// Session CRUD - protected API routes
 	authGroup.POST("/api/sessions", createSessionHandler)
 	authGroup.GET("/api/sessions", getSessionsHandler)
 	authGroup.GET("/api/sessions/:id", getSessionHandler)
 	authGroup.PUT("/api/sessions/:id", updateSessionHandler)
 	authGroup.DELETE("/api/sessions/:id", deleteSessionHandler)
-	authGroup.GET("/api/sessions/tag", getSessionsByTagHandler) // New route to get sessions by tag
+	authGroup.GET("/api/sessions/tag", getSessionsByTagHandler)
 
 	// Pomodoro CRUD - protected API routes
 	authGroup.POST("/api/pomodoros", createPomodoroHandler)
@@ -46,7 +70,7 @@ func setupRoutes(e *echo.Echo) {
 	// Note CRUD - protected API routes
 	authGroup.POST("/api/notes", createNoteHandler)
 	authGroup.GET("/api/notes/:session_id", getNotesHandler)
-	authGroup.GET("/api/notes", getAllNotesHandler)  // Get all notes for browsing
+	authGroup.GET("/api/notes", getAllNotesHandler)
 	authGroup.PUT("/api/notes/:id", updateNoteHandler)
 	authGroup.DELETE("/api/notes/:id", deleteNoteHandler)
 	
@@ -57,7 +81,15 @@ func setupRoutes(e *echo.Echo) {
 	authGroup.DELETE("/api/tags/:id", deleteTagHandler)
 	
 	// Stats routes
-	authGroup.GET("/api/stats/monthly-tags", getMonthlyTagStatsHandler) // Get monthly stats by tag
+	authGroup.GET("/api/stats/monthly-tags", getMonthlyTagStatsHandler)
+
+	adminGroup.GET("/api/db-stats", getDatabaseStatsHandler)
+	adminGroup.POST("/api/check-integrity", checkDatabaseIntegrityHandler)
+
+	authGroup.PUT("/api/user/update", updateUserProfileHandler)
+
+	authGroup.GET("/profile", userProfilePage)
+	authGroup.PUT("/api/user/update", updateUserProfileHandler)
 	
 	// For the PWA
 	e.GET("/manifest.json", func(c echo.Context) error {
@@ -85,12 +117,16 @@ func activitiesPage(c echo.Context) error {
 	return c.File("templates/activities.html")
 }
 
-// Tags management page serves the tags.html
-func tagsManagementPage(c echo.Context) error {
-	return c.File("templates/tags.html")
-}
-
 // Login page serves the login.html
 func loginPage(c echo.Context) error {
 	return c.File("templates/login.html")
+}
+
+// Admin dashboard page
+func adminDashboardPage(c echo.Context) error {
+	return c.File("templates/admin.html")
+}
+
+func userProfilePage(c echo.Context) error {
+	return c.File("templates/profile.html")
 }

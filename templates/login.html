@@ -3,120 +3,281 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Pomonotes</title>
+    <title>Login - PomoNotes</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
-    <link rel="stylesheet" href="/static/style.css">
     <link rel="manifest" href="/static/manifest.json">
+    <style>
+        :root {
+            --primary-color: #e74c3c;
+            --primary-hover: #c0392b;
+            --card-background: #2c3e50;
+            --card-border: #34495e;
+        }
+        
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--background-color);
+            margin: 0;
+            padding: 0;
+        }
+        
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            padding: 20px;
+        }
+        
+        .app-logo {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        
+        .app-logo h1 {
+            color: var(--primary-color);
+            margin-bottom: 0;
+            font-size: 2.5rem;
+        }
+        
+        .app-logo p {
+            margin-top: 0;
+            opacity: 0.8;
+            font-size: 1rem;
+        }
+        
+        .login-card {
+            background-color: var(--card-background);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .login-card h2 {
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+            color: var(--h2-color);
+            text-align: center;
+        }
+        
+        .remember-me {
+            display: flex;
+            align-items: center;
+        }
+        
+        .remember-me input {
+            margin-right: 10px;
+        }
+        
+        button[type="submit"] {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            width: 100%;
+            margin-top: 1rem;
+        }
+        
+        button[type="submit"]:hover {
+            background-color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+        
+        .error-message {
+            color: var(--form-element-invalid-color);
+            background: var(--form-element-invalid-background);
+            border: 1px solid var(--form-element-invalid-border-color);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .attribution {
+            text-align: center;
+            margin-top: 2rem;
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        /* Animated pomodoro icon */
+        .tomato-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1rem;
+            position: relative;
+        }
+        
+        .tomato {
+            background-color: #e74c3c;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            position: absolute;
+            top: 15px;
+            left: 10px;
+        }
+        
+        .leaf {
+            position: absolute;
+            background-color: #2ecc71;
+            width: 20px;
+            height: 30px;
+            border-radius: 0 30px 0 30px;
+            transform: rotate(-45deg);
+            top: 0;
+            left: 30px;
+        }
+        
+        .leaf:before {
+            content: '';
+            position: absolute;
+            background-color: #27ae60;
+            width: 15px;
+            height: 25px;
+            border-radius: 0 30px 0 30px;
+            transform: rotate(90deg);
+            top: -10px;
+            left: 15px;
+        }
+        
+        /* Subtle animation */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .tomato {
+            animation: pulse 2s infinite ease-in-out;
+        }
+    </style>
 </head>
 <body>
-    <nav class="container-fluid">
-        <ul>
-            <li><strong>Pomonotes</strong></li>
-        </ul>
-    </nav>
-
-    <main class="container">
-        <article class="login-container">
-            <header>
-                <h1>Login to Pomonotes</h1>
-                <p>Enter your admin password to continue</p>
-            </header>
-
-            <div class="login-form">
-                <form id="login-form">
-                    <div class="alert-container" id="login-alert"></div>
-                    
-                    <label for="password">Admin Password</label>
-                    <input type="password" id="password" name="password" placeholder="Enter admin password" required>
-                    
-                    <button type="submit" id="login-button">Login</button>
-                </form>
+    <main class="login-container">
+        <div class="app-logo">
+            <div class="tomato-icon">
+                <div class="tomato"></div>
+                <div class="leaf"></div>
             </div>
-        </article>
+            <h1>PomoNotes</h1>
+            <p>Focus Timer & Productivity Tool</p>
+        </div>
+        
+        <div class="login-card">
+            <h2>Sign In</h2>
+            
+            <div id="error-message" class="error-message"></div>
+            
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter your username" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter your password" required>
+                </div>
+                
+                <div class="form-group remember-me">
+                    <input type="checkbox" id="remember-me" name="remember-me">
+                    <label for="remember-me">Remember me</label>
+                </div>
+                
+                <button type="submit" id="login-button">Sign In</button>
+            </form>
+        </div>
+        
+        <div class="attribution">
+            <p>PomoNotes &copy; 2025</p>
+        </div>
     </main>
-
+    
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const loginForm = document.getElementById('login-form');
-            const loginAlert = document.getElementById('login-alert');
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
             
-            // Check if we're already logged in
-            checkAuthStatus();
+            // Show loading state
+            const loginButton = document.getElementById('login-button');
+            const originalText = loginButton.textContent;
+            loginButton.textContent = 'Signing in...';
+            loginButton.disabled = true;
             
-            // Login form submission
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
+            // Hide any previous error message
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.style.display = 'none';
+            
+            // Get form data
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password }),
+                    credentials: 'same-origin'
+                });
                 
-                const password = document.getElementById('password').value;
+                const data = await response.json();
                 
-                try {
-                    // Clear any previous alerts
-                    loginAlert.innerHTML = '';
-                    
-                    // Disable the button and show loading state
-                    const loginButton = document.getElementById('login-button');
-                    loginButton.disabled = true;
-                    loginButton.textContent = 'Logging in...';
-                    
-                    // Send login request
-                    const response = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({ password })
-                    });
-                    
-                    // Parse response
-                    const data = await response.json();
-                    
-                    // Reset button state
-                    loginButton.disabled = false;
-                    loginButton.textContent = 'Login';
-                    
-                    if (response.ok) {
-                        // Success - save token as cookie
-                        document.cookie = `auth_token=${data.token}; path=/; max-age=${60*60*24*3}`; // 3 days
-                        
-                        // Redirect to main page
-                        window.location.href = '/';
-                    } else {
-                        // Show error message
-                        loginAlert.innerHTML = `
-                            <div class="alert alert-error">
-                                ${data.error || 'Login failed. Please try again.'}
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    console.error('Login error:', error);
-                    loginAlert.innerHTML = `
-                        <div class="alert alert-error">
-                            Login error. Please try again later.
-                        </div>
-                    `;
-                    
-                    // Reset button state
-                    const loginButton = document.getElementById('login-button');
-                    loginButton.disabled = false;
-                    loginButton.textContent = 'Login';
+                if (!response.ok) {
+                    throw new Error(data.error || 'Login failed');
                 }
-            });
-            
-            // Check authentication status
-            async function checkAuthStatus() {
-                try {
-                    const response = await fetch('/api/auth/status');
-                    const data = await response.json();
-                    
-                    if (data.authenticated) {
-                        // If already authenticated, redirect to home
-                        window.location.href = '/';
-                    }
-                } catch (error) {
-                    console.error('Auth check error:', error);
+                
+                // Store remember-me preference if checked
+                if (document.getElementById('remember-me').checked) {
+                    localStorage.setItem('pomonotes_remember', 'true');
+                } else {
+                    localStorage.removeItem('pomonotes_remember');
                 }
+                
+                // On successful login, redirect to homepage
+                window.location.href = '/';
+            } catch (error) {
+                // Display error message
+                errorMessage.textContent = error.message;
+                errorMessage.style.display = 'block';
+                
+                // Reset button
+                loginButton.textContent = originalText;
+                loginButton.disabled = false;
             }
+        });
+        
+        // Check if we're already logged in
+        async function checkAuthStatus() {
+            try {
+                const response = await fetch('/api/auth/status', {
+                    credentials: 'same-origin'
+                });
+                
+                const data = await response.json();
+                
+                if (data.authenticated) {
+                    // Already logged in, redirect to homepage
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Error checking auth status:', error);
+            }
+        }
+        
+        // Fill in username if remembered
+        function checkRememberMe() {
+            if (localStorage.getItem('pomonotes_remember') === 'true') {
+                document.getElementById('remember-me').checked = true;
+                // If we had stored the username in localStorage, we could restore it here
+            }
+        }
+        
+        // Run auth check and remember-me when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuthStatus();
+            checkRememberMe();
         });
     </script>
 </body>

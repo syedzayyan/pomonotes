@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile - Pomonotes</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <link rel="stylesheet" href="/static/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.6"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="manifest" href="/static/manifest.json">
+    <script src="/static/auth.js"></script>
+    <script src="/static/navbar.js"></script>
+    <style>
+        .profile-layout {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+        }
+
+        @media (min-width: 992px) {
+            .profile-layout {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .tab-container {
+            margin-top: 1rem;
+        }
+
+        .tab-nav {
+            display: flex;
+            border-bottom: 1px solid var(--card-border-color);
+            margin-bottom: 1rem;
+        }
+
+        .tab-nav button {
+            background: none;
+            border: none;
+            padding: 0.5rem 1rem;
+            margin-right: 0.5rem;
+            color: var(--color);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-nav button.active {
+            border-bottom: 2px solid var(--primary);
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .profile-card {
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .profile-avatar {
+            background-color: var(--primary);
+            color: white;
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .stat-card {
+            background-color: var(--card-background-color);
+            border: 1px solid var(--card-border-color);
+            border-radius: var(--border-radius);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-card h3 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .stat-card p {
+            margin: 0;
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .color-swatch {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            color: white;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+
+        .tag-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .tag-actions button {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.8rem;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="navbar-placeholder"></div>
+    <main class="container">
+        <h1>User Profile</h1>
+
+        <div class="profile-layout">
+            <!-- User Profile Card -->
+            <article>
+                <div class="profile-card">
+                    <div class="profile-avatar" id="profile-avatar">JD</div>
+                    <h2 id="username">Username</h2>
+                    <p id="user-email">email@example.com</p>
+                    <p id="user-join-date">Member since: Jan 1, 2023</p>
+
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <h3 id="total-sessions">0</h3>
+                            <p>Sessions</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="total-hours">0</h3>
+                            <p>Hours</p>
+                        </div>
+                        <div class="stat-card">
+                            <h3 id="total-tags">0</h3>
+                            <p>Tags</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="account-settings">
+                    <h3>Account Settings</h3>
+                    <form id="update-profile-form">
+                        <div class="grid">
+                            <label for="update-email">
+                                Email
+                                <input type="email" id="update-email" name="email" placeholder="Your email">
+                            </label>
+                        </div>
+                        <div class="grid">
+                            <label for="current-password">
+                                Current Password
+                                <input type="password" id="current-password" name="current_password"
+                                    placeholder="Current password">
+                            </label>
+                        </div>
+                        <div class="grid">
+                            <label for="new-password">
+                                New Password
+                                <input type="password" id="new-password" name="new_password" placeholder="New password">
+                            </label>
+                            <label for="confirm-password">
+                                Confirm Password
+                                <input type="password" id="confirm-password" name="confirm_password"
+                                    placeholder="Confirm new password">
+                            </label>
+                        </div>
+
+                        <button type="submit" id="update-profile-btn">Update Profile</button>
+                    </form>
+                </div>
+            </article>
+
+            <!-- Tags Management Section -->
+            <article>
+                <div class="tab-container">
+
+                    <header>
+                        <h1>Tags Management</h1>
+                        <p>Create and manage your session tags</p>
+                    </header>
+
+                    <div class="create-tag-form">
+                        <h3>Create New Tag</h3>
+                        <div class="grid">
+                            <div>
+                                <label for="tag-name">Tag Name</label>
+                                <input type="text" id="tag-name" name="tag-name" placeholder="Enter tag name" required>
+                            </div>
+                            <div>
+                                <label for="tag-color">Tag Color</label>
+                                <input type="color" id="tag-color" name="tag-color" value="#3498db">
+                            </div>
+                            <div>
+                                <label>&nbsp;</label>
+                                <button id="create-tag-btn" class="primary">Create Tag</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="tags-list-container">
+                        <h3>Your Tags</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Tag</th>
+                                        <th>Color</th>
+                                        <th>Usage Count</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tags-list">
+                                    <tr>
+                                        <td colspan="4">Loading tags...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </main>
+
+    <!-- Confirmation Modal -->
+    <dialog id="confirm-modal">
+        <article>
+            <header>
+                <h3>Confirm Action</h3>
+            </header>
+            <p class="modal-message">Are you sure you want to perform this action?</p>
+            <footer>
+                <button class="cancel-btn secondary">Cancel</button>
+                <button class="confirm-btn">Confirm</button>
+            </footer>
+        </article>
+    </dialog>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize tabs
+            initTabs();
+
+            // Load user profile data
+            loadUserProfile();
+
+            // Event listeners for tab switching
+            function initTabs() {
+                const tabButtons = document.querySelectorAll('.tab-button');
+                const tabContents = document.querySelectorAll('.tab-content');
+
+                tabButtons.forEach(button => {
+                    button.addEventListener('click', () => {
+                        const tabId = button.getAttribute('data-tab');
+
+                        // Deactivate all tabs
+                        tabButtons.forEach(btn => btn.classList.remove('active'));
+                        tabContents.forEach(content => content.classList.remove('active'));
+
+                        // Activate selected tab
+                        button.classList.add('active');
+                        document.getElementById(tabId).classList.add('active');
+                    });
+                });
+            }
+
+            // Load user profile data
+            function loadUserProfile() {
+                fetch('/api/user/current')
+                    .then(response => response.json())
+                    .then(user => {
+                        // Update profile info
+                        document.getElementById('username').textContent = user.username;
+
+                        // Set avatar with user's initials
+                        const initials = user.username.substring(0, 2).toUpperCase();
+                        document.getElementById('profile-avatar').textContent = initials;
+
+                        // Update email if available
+                        if (user.email) {
+                            document.getElementById('user-email').textContent = user.email;
+                            document.getElementById('update-email').value = user.email;
+                        } else {
+                            document.getElementById('user-email').textContent = 'No email set';
+                        }
+
+                        // Format created_at date
+                        const joinDate = new Date(user.created_at);
+                        document.getElementById('user-join-date').textContent = `Member since: ${joinDate.toLocaleDateString()}`;
+
+                        // Load stats
+                        loadUserStats();
+                    })
+                    .catch(error => {
+                        console.error('Error loading user profile:', error);
+                    });
+            }
+
+            // Load user statistics
+            function loadUserStats() {
+                // Get all user sessions
+                fetch('/api/sessions?days=365')
+                    .then(response => response.json())
+                    .then(sessions => {
+                        // Calculate total sessions
+                        document.getElementById('total-sessions').textContent = sessions.length;
+
+                        // Calculate total hours
+                        const totalSeconds = sessions.reduce((total, session) => total + session.total_time, 0);
+                        const totalHours = Math.round(totalSeconds / 3600 * 10) / 10; // Round to 1 decimal place
+                        document.getElementById('total-hours').textContent = totalHours;
+
+                        // Get tags count
+                        fetch('/api/tags')
+                            .then(response => response.json())
+                            .then(tags => {
+                                document.getElementById('total-tags').textContent = tags.length;
+                            });
+                    })
+                    .catch(error => {
+                        console.error('Error loading user stats:', error);
+                    });
+            }
+
+            // Update profile form submission
+            const updateProfileForm = document.getElementById('update-profile-form');
+            if (updateProfileForm) {
+                updateProfileForm.addEventListener('submit', function (event) {
+                    event.preventDefault();
+
+                    const email = document.getElementById('update-email').value;
+                    const currentPassword = document.getElementById('current-password').value;
+                    const newPassword = document.getElementById('new-password').value;
+                    const confirmPassword = document.getElementById('confirm-password').value;
+
+                    // Validate passwords
+                    if (newPassword && newPassword !== confirmPassword) {
+                        alert('New passwords do not match');
+                        return;
+                    }
+
+                    // Prepare data for update
+                    const updateData = {
+                        email: email || null
+                    };
+
+                    // Only include password fields if a change is requested
+                    if (newPassword && currentPassword) {
+                        updateData.current_password = currentPassword;
+                        updateData.new_password = newPassword;
+                    }
+
+                    // Send update request
+                    fetch('/api/user/update', {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(updateData)
+                    })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to update profile');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            alert('Profile updated successfully');
+
+                            // Clear password fields
+                            document.getElementById('current-password').value = '';
+                            document.getElementById('new-password').value = '';
+                            document.getElementById('confirm-password').value = '';
+
+                            // Reload user profile
+                            loadUserProfile();
+                        })
+                        .catch(error => {
+                            alert('Error updating profile: ' + error.message);
+                        });
+                });
+            }
+
+
+
+            const tagsList = document.getElementById('tags-list');
+            const createTagBtn = document.getElementById('create-tag-btn');
+            const tagNameInput = document.getElementById('tag-name');
+            const tagColorInput = document.getElementById('tag-color');
+            const editTagModal = document.getElementById('edit-tag-modal');
+            const editTagId = document.getElementById('edit-tag-id');
+            const editTagName = document.getElementById('edit-tag-name');
+            const editTagColor = document.getElementById('edit-tag-color');
+            const saveEditBtn = document.getElementById('save-edit-btn');
+            const cancelEditBtn = document.getElementById('cancel-edit-btn');
+            const closeEditModal = document.getElementById('close-edit-modal');
+            const confirmModal = document.getElementById('confirm-modal');
+            const statsYear = document.getElementById('stats-year');
+
+            // Load tags on page load
+            loadTags();
+
+            // Load all tags from the server
+            function loadTags() {
+                fetch('/api/tags')
+                    .then(response => response.json())
+                    .then(tags => {
+                        if (tags && tags.length > 0) {
+                            tagsList.innerHTML = '';
+
+                            tags.forEach(tag => {
+                                const row = document.createElement('tr');
+
+                                // Create tag preview
+                                const tagPreview = document.createElement('span');
+                                tagPreview.className = 'tag';
+                                tagPreview.textContent = tag.name;
+                                tagPreview.style.backgroundColor = tag.color;
+
+                                // Add tag cell
+                                const tagCell = document.createElement('td');
+                                tagCell.appendChild(tagPreview);
+                                row.appendChild(tagCell);
+
+                                // Add color swatch cell
+                                const colorCell = document.createElement('td');
+                                const colorSwatch = document.createElement('div');
+                                colorSwatch.className = 'color-swatch';
+                                colorSwatch.style.backgroundColor = tag.color;
+                                colorSwatch.setAttribute('title', tag.color);
+                                colorCell.appendChild(colorSwatch);
+                                row.appendChild(colorCell);
+
+                                // Add usage count cell
+                                const countCell = document.createElement('td');
+                                countCell.textContent = tag.usage_count || 0;
+                                row.appendChild(countCell);
+
+                                // Add actions cell
+                                const actionsCell = document.createElement('td');
+                                actionsCell.className = 'tag-actions';
+
+                                // Edit button
+                                const editBtn = document.createElement('button');
+                                editBtn.className = 'edit-tag';
+                                editBtn.textContent = 'Edit';
+                                editBtn.setAttribute('data-id', tag.id);
+                                editBtn.setAttribute('data-name', tag.name);
+                                editBtn.setAttribute('data-color', tag.color);
+
+                                // Delete button
+                                const deleteBtn = document.createElement('button');
+                                deleteBtn.className = 'delete-tag secondary';
+                                deleteBtn.textContent = 'Delete';
+                                deleteBtn.setAttribute('data-id', tag.id);
+                                deleteBtn.setAttribute('data-name', tag.name);
+
+                                actionsCell.appendChild(editBtn);
+                                actionsCell.appendChild(deleteBtn);
+                                row.appendChild(actionsCell);
+
+                                tagsList.appendChild(row);
+                            });
+
+                            // Set up event handlers for edit and delete buttons
+                            setupTagActions();
+                        } else {
+                            tagsList.innerHTML = '<tr><td colspan="4">No tags found. Create your first tag above.</td></tr>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading tags:', error);
+                        tagsList.innerHTML = '<tr><td colspan="4">Error loading tags. Please try again.</td></tr>';
+                    });
+            }
+
+            // Set up handlers for tag actions (edit/delete)
+            function setupTagActions() {
+                // Edit buttons
+                document.querySelectorAll('.edit-tag').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const id = this.getAttribute('data-id');
+                        const name = this.getAttribute('data-name');
+                        const color = this.getAttribute('data-color');
+
+                        // Set values in the edit form
+                        editTagId.value = id;
+                        editTagName.value = name;
+                        editTagColor.value = color;
+
+                        // Show the modal
+                        editTagModal.showModal();
+                    });
+                });
+
+                // Delete buttons
+                document.querySelectorAll('.delete-tag').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const id = this.getAttribute('data-id');
+                        const name = this.getAttribute('data-name');
+
+                        // Show confirmation dialog
+                        confirmModal.querySelector('.modal-message').textContent =
+                            `Are you sure you want to delete the tag "${name}"? This will remove the tag from all sessions.`;
+
+                        // Set up confirm button action
+                        const confirmBtn = confirmModal.querySelector('.confirm-btn');
+                        confirmBtn.onclick = function () {
+                            deleteTag(id);
+                            confirmModal.close();
+                        };
+
+                        // Set up cancel button action
+                        const cancelBtn = confirmModal.querySelector('.cancel-btn');
+                        cancelBtn.onclick = function () {
+                            confirmModal.close();
+                        };
+
+                        confirmModal.showModal();
+                    });
+                });
+            }
+
+            // Create a new tag
+            function createTag() {
+                const name = tagNameInput.value.trim();
+                const color = tagColorInput.value;
+
+                if (!name) {
+                    alert('Please enter a tag name');
+                    return;
+                }
+
+                fetch('/api/tags', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        color
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Tag created:', data);
+
+                        // Clear inputs
+                        tagNameInput.value = '';
+
+                        // Reload tags
+                        loadTags();
+
+                    })
+                    .catch(error => {
+                        console.error('Error creating tag:', error);
+                        alert('Error creating tag. Please try again.');
+                    });
+            }
+
+            // Update a tag
+            function updateTag() {
+                const id = editTagId.value;
+                const name = editTagName.value.trim();
+                const color = editTagColor.value;
+
+                if (!name) {
+                    alert('Please enter a tag name');
+                    return;
+                }
+
+                fetch(`/api/tags/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        color
+                    })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Tag updated:', data);
+
+                        // Close the modal
+                        editTagModal.close();
+
+                        // Reload tags
+                        loadTags();
+
+                        // Reload statistics
+                    })
+                    .catch(error => {
+                        console.error('Error updating tag:', error);
+                        alert('Error updating tag. Please try again.');
+                    });
+            }
+
+            // Delete a tag
+            function deleteTag(id) {
+                fetch(`/api/tags/${id}`, {
+                    method: 'DELETE'
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Tag deleted:', data);
+
+                        // Reload tags
+                        loadTags();
+                    })
+                    .catch(error => {
+                        console.error('Error deleting tag:', error);
+                        alert('Error deleting tag. Please try again.');
+                    });
+            }
+            // Event listeners
+            if (createTagBtn) {
+                createTagBtn.addEventListener('click', createTag);
+            }
+
+            if (saveEditBtn) {
+                saveEditBtn.addEventListener('click', updateTag);
+            }
+
+            if (cancelEditBtn) {
+                cancelEditBtn.addEventListener('click', () => {
+                    editTagModal.close();
+                });
+            }
+
+            if (closeEditModal) {
+                closeEditModal.addEventListener('click', () => {
+                    editTagModal.close();
+                });
+            }
+
+            // Also allow for enter key on tag name input
+            if (tagNameInput) {
+                tagNameInput.addEventListener('keydown', function (event) {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        createTag();
+                    }
+                });
+            }
+        });
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+
+</html>

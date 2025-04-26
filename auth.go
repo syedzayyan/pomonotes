@@ -7,6 +7,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/labstack/echo/v4"
+
+	"errors"
+	"strings"
 )
 
 // JWT secret key - in production, this should be securely managed
@@ -24,6 +27,7 @@ type JwtCustomClaims struct {
 
 // Auth request structure
 type LoginRequest struct {
+	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
@@ -43,15 +47,19 @@ func loginHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
 	}
 
-	// Check if password matches
-	if loginReq.Password != adminPassword {
-		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid credentials"})
+	// Validate credentials
+	user, err := validateCredentials(loginReq.Username, loginReq.Password)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": err.Error()})
 	}
+
+	// Update last login time
+	updateLastLogin(user.ID)
 
 	// Set custom claims
 	claims := &JwtCustomClaims{
-		"admin",
-		true,
+		user.Username,
+		user.IsAdmin,
 		jwt.StandardClaims{
 			ExpiresAt: time.Now().Add(time.Hour * 72).Unix(), // Token valid for 3 days
 		},
@@ -66,10 +74,75 @@ func loginHandler(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Could not generate token"})
 	}
 
-	// Return the token
-	return c.JSON(http.StatusOK, map[string]string{
+	// Set token as an HTTP-only cookie
+	cookie := new(http.Cookie)
+	cookie.Name = "auth_token"
+	cookie.Value = tokenString
+	cookie.Expires = time.Now().Add(72 * time.Hour)
+	cookie.Path = "/"
+	cookie.HttpOnly = true
+	c.SetCookie(cookie)
+
+	// Return the token and user info
+	return c.JSON(http.StatusOK, map[string]interface{}{
 		"token": tokenString,
+		"user": map[string]interface{}{
+			"id": user.ID,
+			"username": user.Username,
+			"isAdmin": user.IsAdmin,
+		},
 	})
+}
+func logoutHandler(c echo.Context) error {
+	// Clear the auth cookie
+	cookie := new(http.Cookie)
+	cookie.Name = "auth_token"
+	cookie.Value = ""
+	cookie.Expires = time.Now().Add(-1 * time.Hour) // Expired
+	cookie.Path = "/"
+	cookie.HttpOnly = true
+	c.SetCookie(cookie)
+	
+	return c.JSON(http.StatusOK, map[string]string{"message": "Logged out successfully"})
+}
+
+func getCurrentUser(c echo.Context) (User, error) {
+	userToken := c.Get("user")
+	if userToken == nil {
+		return User{}, errors.New("user not authenticated")
+	}
+	
+	token, ok := userToken.(*jwt.Token)
+	if !ok {
+		return User{}, errors.New("invalid token")
+	}
+	
+	claims, ok := token.Claims.(*JwtCustomClaims)
+	if !ok {
+		return User{}, errors.New("invalid claims")
+	}
+	
+	user, err := getUserByUsername(claims.Name)
+	if err != nil {
+		return User{}, err
+	}
+	
+	return user, nil
+}
+
+func requireAdmin(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		user, err := getCurrentUser(c)
+		if err != nil {
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+		}
+		
+		if !user.IsAdmin {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "Admin privileges required"})
+		}
+		
+		return next(c)
+	}
 }
 
 // Check auth status
@@ -81,31 +154,43 @@ func authStatusHandler(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]bool{"authenticated": true})
 }
 
-// Configure JWT middleware
 func configureJWTMiddleware() echo.MiddlewareFunc {
-	// Create a custom middleware function
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			// Get the auth cookie
-			authCookie, err := c.Cookie("auth_token")
-			if err != nil || authCookie == nil || authCookie.Value == "" {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Please login to continue")
-			}
-			
-			// Parse and validate the token
-			token, err := jwt.ParseWithClaims(authCookie.Value, &JwtCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
-				return jwtSecret, nil
-			})
-			
-			if err != nil || !token.Valid {
-				return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired token")
-			}
-			
-			// Token is valid, set it in context
-			c.Set("user", token)
-			return next(c)
-		}
-	}
+    return func(next echo.HandlerFunc) echo.HandlerFunc {
+        return func(c echo.Context) error {
+            // Get the auth cookie
+            authCookie, err := c.Cookie("auth_token")
+            if err != nil || authCookie == nil || authCookie.Value == "" {
+                // Check if this is an API request or a page request
+                if strings.HasPrefix(c.Request().URL.Path, "/api/") {
+                    // For API requests, return 401 Unauthorized
+                    return echo.NewHTTPError(http.StatusUnauthorized, "Please login to continue")
+                } else {
+                    // For page requests, redirect to login page
+                    return c.Redirect(http.StatusFound, "/login")
+                }
+            }
+            
+            // Parse and validate the token
+            token, err := jwt.ParseWithClaims(authCookie.Value, &JwtCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+                return jwtSecret, nil
+            })
+            
+            if err != nil || !token.Valid {
+                // Check if this is an API request or a page request
+                if strings.HasPrefix(c.Request().URL.Path, "/api/") {
+                    // For API requests, return 401 Unauthorized
+                    return echo.NewHTTPError(http.StatusUnauthorized, "Invalid or expired token")
+                } else {
+                    // For page requests, redirect to login page
+                    return c.Redirect(http.StatusFound, "/login")
+                }
+            }
+            
+            // Token is valid, set it in context
+            c.Set("user", token)
+            return next(c)
+        }
+    }
 }
 
 // Optional auth middleware - doesn't require auth but sets user if available

@@ -19,8 +19,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 activeNavId = 'nav-notes';
             } else if (currentPath.startsWith('/activities')) {
                 activeNavId = 'nav-activities';
-            } else if (currentPath.startsWith('/tags')) {
-                activeNavId = 'nav-tags';
             }
             
             // Set active class if an element was found

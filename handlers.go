@@ -6,6 +6,7 @@ import (
 	"time"
 	"strings"
 	"github.com/labstack/echo/v4"
+	"log"
 )
 
 // Session handlers
@@ -15,8 +16,23 @@ func createSessionHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request data"})
 	}
 
+	// Get current user ID
+	currentUser, err := getCurrentUser(c)
+	if err != nil {
+		// If there's an error getting the user, use the session without a user ID
+		log.Printf("Warning: Creating session without user ID: %v", err)
+	}
+
 	// Create a new session with tags
-	sessionID, err := createSession(session.StartTime, session.Tags)
+	var sessionID int64
+	if err == nil {
+		// Create session with user ID
+		sessionID, err = createSessionWithUser(session.StartTime, session.Tags, currentUser.ID)
+	} else {
+		// Create session without user ID (fallback)
+		sessionID, err = createSession(session.StartTime, session.Tags)
+	}
+	
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
@@ -28,14 +44,33 @@ func createSessionHandler(c echo.Context) error {
 	})
 }
 
+// Update this in handlers.go
+
+// Modify getSessionsHandler to limit data by default
 func getSessionsHandler(c echo.Context) error {
-	// Check for tag filter
+	// Get current user
+	currentUser, err := getCurrentUser(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+	}
+	
+	// Parse query parameters
 	tag := c.QueryParam("tag")
 	rangeParam := c.QueryParam("range")
+	daysParam := c.QueryParam("days")
+	
+	// Default to 7 days if not specified
+	days := 7
+	if daysParam != "" {
+		parsedDays, err := strconv.Atoi(daysParam)
+		if err == nil && parsedDays > 0 {
+			days = parsedDays
+		}
+	}
 	
 	// If tag filter provided, get sessions by tag
 	if tag != "" {
-		sessions, err := getSessionsByTag(tag)
+		sessions, err := getSessionsByTagForUser(tag, currentUser.ID)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
@@ -46,34 +81,53 @@ func getSessionsHandler(c echo.Context) error {
 	if rangeParam != "" {
 		// Get start and end dates based on range parameter
 		startDate, endDate := getDateRangeFromParam(rangeParam)
-		sessions, err := getSessionsByDateRange(startDate, endDate)
+		sessions, err := getSessionsByDateRangeForUser(startDate, endDate, currentUser.ID)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 		return c.JSON(http.StatusOK, sessions)
 	}
 	
-	// Otherwise get all sessions
-	sessions, err := getSessions()
+	// Otherwise get sessions for the specified number of days
+	sessions, err := getSessionsByDaysForUser(days, currentUser.ID)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	return c.JSON(http.StatusOK, sessions)
 }
 
+
+
 func getSessionHandler(c echo.Context) error {
+	// Get current user
+	currentUser, err := getCurrentUser(c)
+	if err != nil {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Authentication required"})
+	}
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid session ID"})
 	}
 
+	// Get the session
 	session, err := getSession(id)
 	if err != nil {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "Session not found"})
 	}
 
+	// Check if admin or session owner
+	if !currentUser.IsAdmin {
+		// Check session ownership
+		isOwner, err := isSessionOwner(id, currentUser.ID)
+		if err != nil || !isOwner {
+			return c.JSON(http.StatusForbidden, map[string]string{"error": "You don't have permission to access this session"})
+		}
+	}
+
 	return c.JSON(http.StatusOK, session)
 }
+
 
 func updateSessionHandler(c echo.Context) error {
     id, err := strconv.Atoi(c.Param("id"))
