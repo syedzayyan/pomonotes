@@ -47,7 +47,6 @@ func setupRoutes(e *echo.Echo) {
 	authGroup.GET("/history", historyPage)
 	authGroup.GET("/notes", notesPage)
 	authGroup.GET("/activities", activitiesPage)
-	authGroup.GET("/tags", tagsManagementPage)
 	
 	// Session CRUD - protected API routes
 	authGroup.POST("/api/sessions", createSessionHandler)
