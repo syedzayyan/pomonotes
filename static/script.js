@@ -723,12 +723,27 @@ document.addEventListener("DOMContentLoaded", () => {
   // Modified executeSkipTimer to handle end of 4 pomodoros
   function executeSkipTimer() {
     clearTimeout(timerInterval);
-
-    // Update current timer in database
+    const skipBtn = document.querySelector(".skip-btn");
     if (isBreak) {
-      updateBreakStatus("skipped");
+      // In a break
+      skipBtn.textContent = "End Break";
+    } else if (timeRemaining <= 0) {
+      // In a pomodoro overtime
+      skipBtn.textContent = "End Pom";
     } else {
+      // In a regular pomodoro
+      skipBtn.textContent = "Skip";
+    }
+    // Update current timer in database
+    if (!isBreak && timeRemaining <= 0) {
+      // We've already passed the full pomodoro time, mark as completed instead of skipped
+      updatePomodoroStatus("completed");
+    } else if (!isBreak) {
+      // Normal skip behavior for an incomplete pomodoro
       updatePomodoroStatus("skipped");
+    } else {
+      // Skip behavior for breaks remains unchanged
+      updateBreakStatus("skipped");
     }
 
     // Check if we've completed 4 pomodoros
