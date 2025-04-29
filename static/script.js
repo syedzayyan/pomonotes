@@ -117,12 +117,16 @@ document.addEventListener("DOMContentLoaded", () => {
   async function processPendingRequests() {
     if (!isOnline || pendingRequests.length === 0) return;
 
+    console.log(`Processing ${pendingRequests.length} pending requests`);
+
     const requestsToProcess = [...pendingRequests];
     pendingRequests = [];
     savePendingRequests();
 
     for (const req of requestsToProcess) {
       try {
+        console.log(`Processing pending ${req.method} request to ${req.url}`);
+
         const response = await fetch(req.url, {
           method: req.method,
           headers: req.headers,
@@ -138,16 +142,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Handle special cases like updating IDs after creation
         if (req.method === "POST" && req.type === "session" && data.id) {
-          if (currentSessionId === req.tempId) {
+          // Make sure we don't get a zero ID
+          if (data.id === 0 || data.id === "0") {
+            console.error("Server returned invalid zero ID for session, keeping temp ID:", req.tempId);
+          } else if (currentSessionId === req.tempId) {
+            // Only update if we're still using the temp ID
+            console.log(`Updating session ID from ${currentSessionId} to ${data.id}`);
             currentSessionId = data.id;
             localStorage.setItem("currentSessionId", currentSessionId);
+
+            // Update save button if needed
+            if (saveBtn && saveBtn.hasAttribute('hx-post')) {
+              const noteUrl = `/api/notes?session_id=${currentSessionId}`;
+              saveBtn.setAttribute('hx-post', noteUrl);
+            }
           }
         } else if (req.method === "POST" && req.type === "pomodoro" && data.id) {
-          if (currentPomodoroId === req.tempId) {
+          // Make sure we don't get a zero ID
+          if (data.id === 0 || data.id === "0") {
+            console.error("Server returned invalid zero ID for pomodoro, keeping temp ID:", req.tempId);
+          } else if (currentPomodoroId === req.tempId) {
+            // Only update if we're still using the temp ID
+            console.log(`Updating pomodoro ID from ${currentPomodoroId} to ${data.id}`);
             currentPomodoroId = data.id;
+
+            // Update save button if needed
+            if (saveBtn && saveBtn.hasAttribute('hx-post') && currentSessionId) {
+              const noteUrl = `/api/notes?session_id=${currentSessionId}&pomodoro_id=${currentPomodoroId}`;
+              saveBtn.setAttribute('hx-post', noteUrl);
+            }
           }
         } else if (req.method === "POST" && req.type === "break" && data.id) {
-          if (currentBreakId === req.tempId) {
+          // Make sure we don't get a zero ID
+          if (data.id === 0 || data.id === "0") {
+            console.error("Server returned invalid zero ID for break, keeping temp ID:", req.tempId);
+          } else if (currentBreakId === req.tempId) {
+            // Only update if we're still using the temp ID
+            console.log(`Updating break ID from ${currentBreakId} to ${data.id}`);
             currentBreakId = data.id;
           }
         }
@@ -171,9 +202,24 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           return response.json();
         })
+        .then(data => {
+          // Check if we got a valid ID back
+          if (data && (data.id === 0 || data.id === "0")) {
+            console.error("Received invalid zero ID from server, using temp ID instead:", tempId);
+            // Override zero ID with our temporary ID
+            data.id = tempId || generateTempId();
+          }
+
+          // If this is a successfully completed request that was creating a resource, log it
+          if (options.method === 'POST' && type && data && data.id) {
+            console.log(`Successfully created ${type} with ID ${data.id}`);
+          }
+
+          return data;
+        })
         .catch(error => {
           console.error(`Error with fetch to ${url}:`, error);
-          
+
           // If network error, queue the request and handle offline
           if (error.name === 'TypeError' && error.message.includes('Network')) {
             handleOffline();
@@ -187,7 +233,7 @@ document.addEventListener("DOMContentLoaded", () => {
             };
             pendingRequests.push(request);
             savePendingRequests();
-            
+
             // For POST requests that create resources, return a temporary object with tempId
             if (options.method === 'POST') {
               try {
@@ -198,7 +244,7 @@ document.addEventListener("DOMContentLoaded", () => {
               }
             }
           }
-          
+
           // Re-throw other errors
           throw error;
         });
@@ -214,7 +260,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       pendingRequests.push(request);
       savePendingRequests();
-      
+
       // For POST requests that create resources, return a temporary object with tempId
       if (options.method === 'POST') {
         try {
@@ -224,12 +270,11 @@ document.addEventListener("DOMContentLoaded", () => {
           return Promise.resolve({ id: tempId });
         }
       }
-      
+
       // For other requests, return empty success
       return Promise.resolve({});
     }
   }
-
   // Cache session data locally
   function cacheSessionData(sessionData) {
     try {
@@ -238,10 +283,10 @@ document.addEventListener("DOMContentLoaded", () => {
       if (storedCache) {
         sessionCache = JSON.parse(storedCache);
       }
-      
+
       // Update or add the session data
       sessionCache[sessionData.id] = sessionData;
-      
+
       localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(sessionCache));
     } catch (e) {
       console.error("Error caching session data:", e);
@@ -344,7 +389,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Function to update skip button text based on current state
   function updateSkipButtonText() {
     if (!skipBtn) return;
-    
+
     if (isBreak) {
       skipBtn.textContent = "End Break";
     } else if (timeRemaining <= 0) {
@@ -457,7 +502,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Restore from cache
             currentSessionId = storedSessionId;
             console.log("Restored cached session:", currentSessionId);
-            
+
             // Restore pomodoro count
             if (cachedSession.completed_pomodoros) {
               currentPomodoro = cachedSession.completed_pomodoros + 1;
@@ -465,7 +510,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentPomodoroDisplay.textContent = currentPomodoro;
               }
             }
-            
+
             // Restore tags
             if (cachedSession.tags) {
               restoreSessionTags(cachedSession.tags);
@@ -473,7 +518,7 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
           }
         }
-        
+
         // Look for stored session
         if (storedSessionId) {
           const storedSession = sessions.find(s => s.id === storedSessionId);
@@ -491,7 +536,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (storedSession.tags) {
               restoreSessionTags(storedSession.tags);
             }
-            
+
             // Cache this session
             cacheSessionData(storedSession);
           }
@@ -506,34 +551,34 @@ document.addEventListener("DOMContentLoaded", () => {
           // Show confirmation to user
           confirmModal.querySelector(".modal-message").textContent =
             `You have an active session (#${activeSession.id}) with ${activeSession.completed_pomodoros} completed pomodoros. Would you like to continue?`;
-            
+
           const confirmBtn = confirmModal.querySelector(".confirm-btn");
           confirmBtn.textContent = "Continue Session";
-          confirmBtn.onclick = function() {
+          confirmBtn.onclick = function () {
             // User wants to continue active session
             currentSessionId = activeSession.id;
             localStorage.setItem("currentSessionId", currentSessionId);
-            
+
             // Update pomodoro count
             currentPomodoro = activeSession.completed_pomodoros + 1;
             if (currentPomodoroDisplay) {
               currentPomodoroDisplay.textContent = currentPomodoro;
             }
-            
+
             // Restore tags
             if (activeSession.tags) {
               restoreSessionTags(activeSession.tags);
             }
-            
+
             // Cache this session
             cacheSessionData(activeSession);
-            
+
             confirmModal.close();
           };
-          
+
           const cancelBtn = confirmModal.querySelector(".cancel-btn");
           cancelBtn.textContent = "Stop Session";
-          cancelBtn.onclick = function() {
+          cancelBtn.onclick = function () {
             // User declined - stop the session
             const now = new Date().toISOString();
             fetchWithOfflineSupport(`/api/sessions/${activeSession.id}`, {
@@ -549,16 +594,16 @@ document.addEventListener("DOMContentLoaded", () => {
             })
               .then(data => console.log("Session stopped:", data))
               .catch(error => console.error("Error stopping session:", error));
-              
+
             confirmModal.close();
           };
-          
+
           confirmModal.showModal();
         }
       })
       .catch(error => {
         console.error("Error fetching sessions:", error);
-        
+
         // If we have a stored session ID and are offline, try to restore from cache
         if (!isOnline && storedSessionId) {
           const cachedSession = getCachedSessionData(storedSessionId);
@@ -566,7 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
             // Restore from cache
             currentSessionId = storedSessionId;
             console.log("Restored cached session due to fetch error:", currentSessionId);
-            
+
             // Restore pomodoro count
             if (cachedSession.completed_pomodoros) {
               currentPomodoro = cachedSession.completed_pomodoros + 1;
@@ -574,7 +619,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 currentPomodoroDisplay.textContent = currentPomodoro;
               }
             }
-            
+
             // Restore tags
             if (cachedSession.tags) {
               restoreSessionTags(cachedSession.tags);
@@ -586,7 +631,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Integrated helper function
     function restoreSessionTags(tagString) {
       if (!tagString) return;
-      
+
       const tagArray = tagString.split(",").filter(tag => tag.trim() !== "");
       currentTags = [];
       tagContainer.innerHTML = "";
@@ -609,7 +654,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
   }
-  
+
   // Create timer notification function
   function createTimerNotification(timeRemaining, isBreak) {
     // Only proceed if notification permission is granted
@@ -658,7 +703,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
   }
-  
+
   function updateTimerNotification(timeRemaining, isBreak) {
     // Only proceed if notification permission is granted
     if (Notification.permission !== "granted") return;
@@ -669,7 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Then create a new one with updated time
     createTimerNotification(timeRemaining, isBreak);
   }
-  
+
   function clearTimerNotification() {
     if (!('serviceWorker' in navigator)) return;
 
@@ -682,7 +727,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     activeTimerNotification = null;
   }
-  
+
   // Timer control functions
   function startTimer() {
     if (isTimerRunning) return;
@@ -693,9 +738,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Create or continue a session
     if (!currentSessionId) {
-      sessionStartTime = new Date().toISOString();
+      // Generate a temp ID for the session
       const tempId = generateTempId();
-      
+      console.log(`Creating new session with temp ID: ${tempId}`);
+
+      // Use the temp ID immediately
+      currentSessionId = tempId;
+      localStorage.setItem("currentSessionId", currentSessionId);
+
+      // Update the save button with the temp ID immediately
+      if (saveBtn && saveBtn.hasAttribute('hx-post')) {
+        const noteUrl = `/api/notes?session_id=${tempId}`;
+        saveBtn.setAttribute('hx-post', noteUrl);
+      }
+
+      sessionStartTime = new Date().toISOString();
+
       // Create a new session with tags
       fetchWithOfflineSupport("/api/sessions", {
         method: "POST",
@@ -709,11 +767,25 @@ document.addEventListener("DOMContentLoaded", () => {
         }),
       }, "session", tempId)
         .then((data) => {
-          console.log("Session created:", data);
+          console.log("Session created response:", data);
           if (data && data.id) {
-            currentSessionId = data.id;
-            localStorage.setItem("currentSessionId", currentSessionId);
-            
+            // Make sure we don't have a zero ID
+            if (data.id === 0 || data.id === "0") {
+              console.error("Server returned invalid zero ID, keeping temp ID:", tempId);
+              // We're already using the temp ID, so no change needed
+            } else {
+              // Update to the server-provided ID
+              currentSessionId = data.id;
+              localStorage.setItem("currentSessionId", currentSessionId);
+              console.log(`Updated session ID to server-provided: ${currentSessionId}`);
+
+              // Update the save button with the new ID
+              if (saveBtn && saveBtn.hasAttribute('hx-post')) {
+                const noteUrl = `/api/notes?session_id=${currentSessionId}`;
+                saveBtn.setAttribute('hx-post', noteUrl);
+              }
+            }
+
             // Cache the session data
             cacheSessionData({
               id: currentSessionId,
@@ -723,13 +795,8 @@ document.addEventListener("DOMContentLoaded", () => {
               completed_pomodoros: 0,
               skipped_pomodoros: 0
             });
-            
-            // Update htmx save button to include session ID
-            if (saveBtn && saveBtn.hasAttribute('hx-post')) {
-              const noteUrl = `/api/notes?session_id=${currentSessionId}`;
-              saveBtn.setAttribute('hx-post', noteUrl);
-            }
-            
+
+            // Create the first pomodoro if needed
             if (currentPomodoro === 1 && !currentPomodoroId) {
               createNewPomodoro();
             }
@@ -805,7 +872,7 @@ document.addEventListener("DOMContentLoaded", () => {
               completePomodoro();
               updateSessionStatus("completed", calculateTotalTime(), currentPomodoro);
             }
-            
+
             // Update skip button text when entering overtime
             updateSkipButtonText();
           }
@@ -900,17 +967,17 @@ document.addEventListener("DOMContentLoaded", () => {
   function calculateTotalTime() {
     // Calculate time for completed pomodoros
     const completedCount = Math.max(0, currentPomodoro - (isBreak ? 0 : 1));
-    
+
     // This fixes the incorrect total time calculation for skipped sessions
     // Only count time for actual completed pomodoros, not skipped ones
     const completedTime = (completedCount - currentSkippedPomodoros) * pomodoroLength;
-    
+
     // Add time for the current incomplete pomodoro if not in a break
     let currentPomodoroTime = 0;
     if (!isBreak && timeRemaining < pomodoroLength) {
       currentPomodoroTime = pomodoroLength - timeRemaining;
     }
-    
+
     return completedTime + currentPomodoroTime;
   }
 
@@ -940,7 +1007,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Modified executeSkipTimer to handle end of 4 pomodoros and track skipped pomodoros
   function executeSkipTimer() {
     clearTimeout(timerInterval);
-    
+
     // Update current timer in database
     if (!isBreak && timeRemaining <= 0) {
       // We've already passed the full pomodoro time, mark as completed instead of skipped
@@ -948,10 +1015,10 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (!isBreak) {
       // Normal skip behavior for an incomplete pomodoro
       updatePomodoroStatus("skipped");
-      
+
       // Track that this pomodoro was skipped for accurate time calculation
       currentSkippedPomodoros++;
-      
+
       // Update skipped_pomodoros count in session
       if (currentSessionId) {
         updateSessionSkippedPomodoros(currentSkippedPomodoros);
@@ -992,7 +1059,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Update timer display
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, timeRemaining);
-    
+
     // Update skip button text based on new state
     updateSkipButtonText();
 
@@ -1021,7 +1088,7 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   }
-  
+
   // Stop the timer (with confirmation)
   function stopTimer() {
     // Only show confirmation if timer is running or paused
@@ -1091,10 +1158,10 @@ document.addEventListener("DOMContentLoaded", () => {
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, pomodoroLength);
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
-    
+
     // Update skip button text
     updateSkipButtonText();
-    
+
     // Update session in database
     return fetchWithOfflineSupport(`/api/sessions/${currentSessionId}`, {
       method: "PUT",
@@ -1113,11 +1180,11 @@ document.addEventListener("DOMContentLoaded", () => {
         if (saveBtn && saveBtn.hasAttribute('hx-post')) {
           saveBtn.setAttribute('hx-post', '/api/notes');
         }
-        
+
         // Clear session ID
         currentSessionId = null;
         localStorage.removeItem("currentSessionId");
-        
+
         return response;
       });
   }
@@ -1164,7 +1231,7 @@ document.addEventListener("DOMContentLoaded", () => {
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
     startBtn.textContent = "Start";
     startBtn.classList.remove("paused");
-    
+
     // Update skip button text to initial state
     updateSkipButtonText();
 
@@ -1184,7 +1251,7 @@ document.addEventListener("DOMContentLoaded", () => {
       // Reset the session
       currentSessionId = null;
       localStorage.removeItem("currentSessionId");
-      
+
       // Remove session ID from save button
       if (saveBtn && saveBtn.hasAttribute('hx-post')) {
         saveBtn.setAttribute('hx-post', '/api/notes');
@@ -1198,10 +1265,24 @@ document.addEventListener("DOMContentLoaded", () => {
   // Helper functions for database updates
   function createNewPomodoro() {
     // Only create if we have a session ID
-    if (!currentSessionId) return;
+    if (!currentSessionId) {
+      console.error("Cannot create pomodoro: No current session ID");
+      return;
+    }
 
+    // Generate a temp ID first and use it immediately
     const tempId = generateTempId();
-    
+    console.log(`Creating new pomodoro with temp ID: ${tempId}`);
+
+    // Set the current pomodoro ID to the temp ID immediately
+    currentPomodoroId = tempId;
+
+    // Update notes endpoint to include pomodoro_id right away
+    if (saveBtn && saveBtn.hasAttribute('hx-post') && currentSessionId) {
+      const noteUrl = `/api/notes?session_id=${currentSessionId}&pomodoro_id=${tempId}`;
+      saveBtn.setAttribute('hx-post', noteUrl);
+    }
+
     fetchWithOfflineSupport("/api/pomodoros", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1214,12 +1295,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }, "pomodoro", tempId)
       .then((data) => {
         if (data && data.id) {
-          currentPomodoroId = data.id;
-          
-          // Update notes endpoint to include pomodoro_id
-          if (saveBtn && saveBtn.hasAttribute('hx-post') && currentSessionId) {
-            const noteUrl = `/api/notes?session_id=${currentSessionId}&pomodoro_id=${data.id}`;
-            saveBtn.setAttribute('hx-post', noteUrl);
+          // Make sure we don't have a zero ID
+          if (data.id === 0 || data.id === "0") {
+            console.error("Server returned invalid zero ID, keeping temp ID:", tempId);
+            // Keep using the temp ID we already set
+          } else {
+            // Update to use the server-provided ID
+            currentPomodoroId = data.id;
+            console.log(`Updated pomodoro ID to server-provided: ${currentPomodoroId}`);
+
+            // Update the save button with the new ID
+            if (saveBtn && saveBtn.hasAttribute('hx-post') && currentSessionId) {
+              const noteUrl = `/api/notes?session_id=${currentSessionId}&pomodoro_id=${currentPomodoroId}`;
+              saveBtn.setAttribute('hx-post', noteUrl);
+            }
           }
         }
       })
@@ -1271,10 +1360,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function createNewBreak() {
     // Only create if we have a session ID and pomodoro ID
-    if (!currentSessionId || !currentPomodoroId) return;
+    if (!currentSessionId || !currentPomodoroId) {
+      console.error("Cannot create break: Missing session or pomodoro ID");
+      return;
+    }
 
     const breakType = currentPomodoro % 4 === 0 ? "long" : "short";
     const tempId = generateTempId();
+    console.log(`Creating new ${breakType} break with temp ID: ${tempId}`);
+
+    // Set the current break ID to the temp ID immediately
+    currentBreakId = tempId;
 
     fetchWithOfflineSupport("/api/breaks", {
       method: "POST",
@@ -1289,7 +1385,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }, "break", tempId)
       .then((data) => {
         if (data && data.id) {
-          currentBreakId = data.id;
+          // Make sure we don't have a zero ID
+          if (data.id === 0 || data.id === "0") {
+            console.error("Server returned invalid zero ID, keeping temp ID:", tempId);
+            // Keep using the temp ID we already set
+          } else {
+            // Update to use the server-provided ID
+            currentBreakId = data.id;
+            console.log(`Updated break ID to server-provided: ${currentBreakId}`);
+          }
         }
       })
       .catch((error) => console.error("Error creating break:", error));
@@ -1400,31 +1504,31 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
   }
-  
+
   // Handle offline error with custom modal message
   function showOfflineErrorModal(message) {
-    confirmModal.querySelector(".modal-message").textContent = message || 
+    confirmModal.querySelector(".modal-message").textContent = message ||
       "You are currently offline. Your data will be saved locally and synced when you're back online.";
-    
+
     const confirmBtn = confirmModal.querySelector(".confirm-btn");
     confirmBtn.textContent = "OK";
-    confirmBtn.onclick = function() {
+    confirmBtn.onclick = function () {
       confirmModal.close();
     };
-    
+
     // Hide the cancel button for this info message
     const cancelBtn = confirmModal.querySelector(".cancel-btn");
     cancelBtn.style.display = "none";
-    
+
     confirmModal.showModal();
-    
+
     // Make sure to reset the cancel button display when modal is closed
     confirmModal.addEventListener('close', function onClose() {
       cancelBtn.style.display = "block";
       confirmModal.removeEventListener('close', onClose);
     });
   }
-  
+
   navigator.serviceWorker.addEventListener('message', function (event) {
     console.log('Message received from service worker:', event.data);
 
@@ -1435,7 +1539,7 @@ document.addEventListener("DOMContentLoaded", () => {
       startTimer();
     }
   });
-  
+
   // Restore notification counter from localStorage
   function restoreNotificationCounter() {
     const storedCounter = localStorage.getItem("notificationCounter");
@@ -1473,7 +1577,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (skipBtn) {
     skipBtn.addEventListener("click", skipTimer);
-    
+
     // Set initial skip button text
     updateSkipButtonText();
   }
@@ -1488,53 +1592,53 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Add htmx event listener for tag selection
   if (tagSelect) {
-    tagSelect.addEventListener("change", function() {
+    tagSelect.addEventListener("change", function () {
       const selectedTag = this.value;
       if (!selectedTag) return;
-      
+
       // Get tag color
       let tagColor = "#3498db"; // Default blue
       const selectedOption = this.options[this.selectedIndex];
       if (selectedOption && selectedOption.getAttribute("data-color")) {
         tagColor = selectedOption.getAttribute("data-color");
       }
-      
+
       // Add tag if not already selected
       if (!currentTags.includes(selectedTag)) {
         addTag(selectedTag, tagColor);
       }
-      
+
       // Reset select to default option
       this.value = "";
     });
   }
 
   // Handle tag input via htmx
-  document.body.addEventListener('htmx:afterRequest', function(event) {
+  document.body.addEventListener('htmx:afterRequest', function (event) {
     // If a tag was added successfully
-    if (event.detail.pathInfo.requestPath === '/api/tags' && 
-        event.detail.pathInfo.method === 'POST' && 
-        event.detail.successful) {
-      
+    if (event.detail.pathInfo.requestPath === '/api/tags' &&
+      event.detail.pathInfo.method === 'POST' &&
+      event.detail.successful) {
+
       // Get the response data
       const newTag = JSON.parse(event.detail.xhr.responseText);
-      
+
       if (newTag && newTag.name) {
         // Add the tag to the UI
         addTag(newTag.name, newTag.color || getRandomColor());
-        
+
         // Clear tag input
         if (tagInput) {
           tagInput.value = '';
         }
       }
     }
-    
+
     // If a note was saved successfully
-    if (event.detail.pathInfo.requestPath.startsWith('/api/notes') && 
-        event.detail.pathInfo.method === 'POST' && 
-        event.detail.successful) {
-      
+    if (event.detail.pathInfo.requestPath.startsWith('/api/notes') &&
+      event.detail.pathInfo.method === 'POST' &&
+      event.detail.successful) {
+
       // Clear the editor
       if (window.simpleMDE) {
         window.simpleMDE.value('');
@@ -1544,56 +1648,56 @@ document.addEventListener("DOMContentLoaded", () => {
           markdownPreview.innerHTML = '';
         }
       }
-      
+
       // Show success message
       alert('Note saved successfully!');
     }
   });
 
   // Handle htmx error events
-  document.body.addEventListener('htmx:responseError', function(event) {
+  document.body.addEventListener('htmx:responseError', function (event) {
     // Check if offline error
     if (!navigator.onLine || event.detail.xhr.status === 0) {
       handleOffline();
-      
+
       // Show offline message
       showOfflineErrorModal();
-      
+
       // Try to handle the request offline if applicable
       const url = event.detail.requestConfig.path;
       const method = event.detail.requestConfig.verb;
-      
+
       // For now, just inform the user their changes will sync later
       console.log(`Handling offline request: ${method} ${url}`);
     }
   });
   // If using SimpleMDE, setup the save note functionality
   if (saveBtn && !saveBtn.hasAttribute('hx-post')) {
-    saveBtn.addEventListener("click", function() {
+    saveBtn.addEventListener("click", function () {
       // Get note content from SimpleMDE or regular textarea
-      const noteText = window.simpleMDE 
-        ? window.simpleMDE.value().trim() 
-        : markdownEditor 
-          ? markdownEditor.value.trim() 
+      const noteText = window.simpleMDE
+        ? window.simpleMDE.value().trim()
+        : markdownEditor
+          ? markdownEditor.value.trim()
           : "";
-      
+
       if (!noteText) {
         alert("Please enter a note before saving.");
         return;
       }
-      
+
       if (!currentSessionId) {
         alert("Start a timer session before saving a note.");
         return;
       }
-      
+
       // Create note data
       const noteData = {
         session_id: currentSessionId,
         pomodoro_id: currentPomodoroId,
         note: noteText
       };
-      
+
       // Save the note
       fetch("/api/notes", {
         method: "POST",
@@ -1603,7 +1707,7 @@ document.addEventListener("DOMContentLoaded", () => {
         .then(response => response.json())
         .then(data => {
           console.log("Note saved:", data);
-          
+
           // Clear the editor
           if (window.simpleMDE) {
             window.simpleMDE.value("");
@@ -1613,7 +1717,7 @@ document.addEventListener("DOMContentLoaded", () => {
               markdownPreview.innerHTML = "";
             }
           }
-          
+
           alert("Note saved successfully!");
         })
         .catch(error => console.error("Error saving note:", error));

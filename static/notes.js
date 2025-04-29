@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let allNotes = [];
     let activeNoteId = null;
     let activeEditor = null;
+    let isEditMode = false;
     
     // Initialize with current date range (last 30 days)
     function initializeDateRange() {
@@ -183,12 +184,14 @@ document.addEventListener('DOMContentLoaded', () => {
             contentRow.id = `note-content-${note.id}`;
             contentRow.innerHTML = `
                 <td colspan="5" class="note-content-cell">
-                    <div class="editor-container" id="editor-container-${note.id}">
+                    <div class="markdown-preview" id="preview-${note.id}"></div>
+                    <div class="editor-container" id="editor-container-${note.id}" style="display: none;">
                         <textarea id="editor-${note.id}" data-markdown="${escapeHTML(note.note)}"></textarea>
                     </div>
-                    <div class="editor-actions" style="margin-top: 15px;">
-                        <button class="save-note-btn" data-note-id="${note.id}">Save</button>
-                        <button class="cancel-edit-btn" data-note-id="${note.id}">Cancel</button>
+                    <div class="note-actions" style="margin-top: 15px;">
+                        <button class="edit-note-btn" data-note-id="${note.id}">Edit</button>
+                        <button class="save-note-btn" data-note-id="${note.id}" style="display: none;">Save</button>
+                        <button class="cancel-edit-btn" data-note-id="${note.id}" style="display: none;">Cancel</button>
                     </div>
                 </td>
             `;
@@ -218,6 +221,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
         
+        // Edit note buttons
+        document.querySelectorAll('.edit-note-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const noteId = this.getAttribute('data-note-id');
+                showNoteEditor(noteId);
+            });
+        });
+        
         // Save note buttons
         document.querySelectorAll('.save-note-btn').forEach(button => {
             button.addEventListener('click', function() {
@@ -230,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelectorAll('.cancel-edit-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const noteId = this.getAttribute('data-note-id');
-                hideNoteContent(noteId);
+                hideNoteEditor(noteId);
             });
         });
     }
@@ -256,8 +267,8 @@ document.addEventListener('DOMContentLoaded', () => {
         noteRow.classList.add('note-row-active');
         activeNoteId = noteId;
         
-        // Initialize the editor if not already done
-        initializeEditor(noteId);
+        // Display the markdown preview
+        renderMarkdownPreview(noteId);
     }
     
     // Hide note content
@@ -268,6 +279,19 @@ document.addEventListener('DOMContentLoaded', () => {
         contentRow.classList.remove('active');
         noteRow.classList.remove('note-row-active');
         
+        // Reset editor state
+        const editorContainer = document.getElementById(`editor-container-${noteId}`);
+        const previewDiv = document.getElementById(`preview-${noteId}`);
+        const editBtn = contentRow.querySelector('.edit-note-btn');
+        const saveBtn = contentRow.querySelector('.save-note-btn');
+        const cancelBtn = contentRow.querySelector('.cancel-edit-btn');
+        
+        if (editorContainer) editorContainer.style.display = 'none';
+        if (previewDiv) previewDiv.style.display = 'block';
+        if (editBtn) editBtn.style.display = 'inline-block';
+        if (saveBtn) saveBtn.style.display = 'none';
+        if (cancelBtn) cancelBtn.style.display = 'none';
+        
         // Destroy editor to free resources
         if (activeEditor) {
             activeEditor.toTextArea();
@@ -275,6 +299,75 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         activeNoteId = null;
+        isEditMode = false;
+    }
+    
+    // Show the markdown preview for a note
+    function renderMarkdownPreview(noteId) {
+        const previewDiv = document.getElementById(`preview-${noteId}`);
+        if (!previewDiv) return;
+        
+        // Find the note content
+        const note = allNotes.find(n => n.id === parseInt(noteId));
+        if (!note) return;
+        
+        // Render markdown using the marked library
+        previewDiv.innerHTML = marked.parse(note.note || '');
+    }
+    
+    // Show the note editor
+    function showNoteEditor(noteId) {
+        const contentRow = document.getElementById(`note-content-${noteId}`);
+        const editorContainer = document.getElementById(`editor-container-${noteId}`);
+        const previewDiv = document.getElementById(`preview-${noteId}`);
+        
+        // Hide preview, show editor
+        previewDiv.style.display = 'none';
+        editorContainer.style.display = 'block';
+        
+        // Switch buttons
+        const editBtn = contentRow.querySelector('.edit-note-btn');
+        const saveBtn = contentRow.querySelector('.save-note-btn');
+        const cancelBtn = contentRow.querySelector('.cancel-edit-btn');
+        
+        editBtn.style.display = 'none';
+        saveBtn.style.display = 'inline-block';
+        cancelBtn.style.display = 'inline-block';
+        
+        // Initialize the editor
+        initializeEditor(noteId);
+        isEditMode = true;
+    }
+    
+    // Hide the note editor and show preview
+    function hideNoteEditor(noteId) {
+        const contentRow = document.getElementById(`note-content-${noteId}`);
+        const editorContainer = document.getElementById(`editor-container-${noteId}`);
+        const previewDiv = document.getElementById(`preview-${noteId}`);
+        
+        // Hide editor, show preview
+        editorContainer.style.display = 'none';
+        previewDiv.style.display = 'block';
+        
+        // Switch buttons
+        const editBtn = contentRow.querySelector('.edit-note-btn');
+        const saveBtn = contentRow.querySelector('.save-note-btn');
+        const cancelBtn = contentRow.querySelector('.cancel-edit-btn');
+        
+        editBtn.style.display = 'inline-block';
+        saveBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        
+        // Re-render the preview with the original content
+        renderMarkdownPreview(noteId);
+        
+        // Destroy editor
+        if (activeEditor) {
+            activeEditor.toTextArea();
+            activeEditor = null;
+        }
+        
+        isEditMode = false;
     }
     
     // Initialize the SimpleMDE editor for a note
@@ -341,8 +434,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 allNotes[noteIndex].note = updatedContent;
             }
             
-            // Hide the editor
-            hideNoteContent(noteId);
+            // Hide the editor and show the updated preview
+            hideNoteEditor(noteId);
             
             // Show success message
             showNotification('Note saved successfully!');

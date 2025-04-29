@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -18,18 +19,23 @@
             width: 100%;
             border-collapse: collapse;
         }
-        .notes-table th, .notes-table td {
+
+        .notes-table th,
+        .notes-table td {
             padding: 10px;
             text-align: left;
             border-bottom: 1px solid var(--card-border-color);
         }
+
         .notes-table tbody tr.note-row {
             cursor: pointer;
             transition: background-color 0.2s;
         }
+
         .notes-table tbody tr.note-row:hover {
             background-color: var(--card-hover-color, rgba(255, 255, 255, 0.05));
         }
+
         .note-preview {
             font-style: italic;
             color: var(--muted-color, #999);
@@ -38,22 +44,28 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
         .note-row-active {
             background-color: var(--card-active-color, rgba(255, 255, 255, 0.1)) !important;
         }
+
         .note-content-row {
             display: none;
         }
+
         .note-content-row.active {
             display: table-row;
         }
+
         .note-content-cell {
             padding: 20px !important;
             background-color: var(--card-background, rgba(0, 0, 0, 0.2));
         }
+
         .editor-container {
             min-height: 300px;
         }
+
         .status-badge {
             display: inline-block;
             padding: 2px 8px;
@@ -61,43 +73,202 @@
             font-size: 0.8rem;
             font-weight: bold;
         }
+
         .status-badge.completed {
             background-color: #4caf50;
             color: white;
         }
+
         .status-badge.in-progress {
             background-color: #2196f3;
             color: white;
         }
+
         .status-badge.paused {
             background-color: #ff9800;
             color: white;
         }
+
         .action-buttons {
             display: flex;
             gap: 8px;
         }
+
         .action-buttons button {
             margin: 0;
             padding: 5px 10px;
         }
+
         .filters {
             display: flex;
             gap: 16px;
             flex-wrap: wrap;
             margin-bottom: 20px;
         }
+
         .date-filter {
             display: flex;
             gap: 8px;
             align-items: center;
             flex-wrap: wrap;
         }
+
         #search-notes {
             margin-bottom: 0;
         }
+
+        /* Add these styles to your style.css file or include them in the notes.html style section */
+
+        /* Markdown preview formatting */
+        .markdown-preview {
+            padding: 0.5rem;
+            line-height: 1.6;
+            overflow-wrap: break-word;
+        }
+
+        .markdown-preview h1,
+        .markdown-preview h2,
+        .markdown-preview h3,
+        .markdown-preview h4,
+        .markdown-preview h5,
+        .markdown-preview h6 {
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .markdown-preview h1 {
+            font-size: 1.75rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--card-border-color);
+        }
+
+        .markdown-preview h2 {
+            font-size: 1.5rem;
+            padding-bottom: 0.3rem;
+            border-bottom: 1px solid var(--card-border-color);
+        }
+
+        .markdown-preview h3 {
+            font-size: 1.25rem;
+        }
+
+        .markdown-preview h4 {
+            font-size: 1rem;
+        }
+
+        .markdown-preview a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .markdown-preview a:hover {
+            text-decoration: underline;
+        }
+
+        .markdown-preview p,
+        .markdown-preview blockquote,
+        .markdown-preview ul,
+        .markdown-preview ol,
+        .markdown-preview dl,
+        .markdown-preview table,
+        .markdown-preview pre {
+            margin-top: 0;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-preview blockquote {
+            padding: 0 1rem;
+            color: var(--muted-color, #999);
+            border-left: 0.25rem solid var(--card-border-color);
+        }
+
+        .markdown-preview blockquote> :first-child {
+            margin-top: 0;
+        }
+
+        .markdown-preview blockquote> :last-child {
+            margin-bottom: 0;
+        }
+
+        .markdown-preview code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(150, 150, 150, 0.1);
+            border-radius: 3px;
+        }
+
+        .markdown-preview pre {
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: rgba(150, 150, 150, 0.1);
+            border-radius: 3px;
+        }
+
+        .markdown-preview pre code {
+            display: inline;
+            padding: 0;
+            margin: 0;
+            overflow: visible;
+            line-height: inherit;
+            word-wrap: normal;
+            background-color: transparent;
+            border: 0;
+        }
+
+        .markdown-preview table {
+            border-collapse: collapse;
+            width: 100%;
+            overflow: auto;
+            display: block;
+        }
+
+        .markdown-preview table th {
+            font-weight: 600;
+        }
+
+        .markdown-preview table th,
+        .markdown-preview table td {
+            padding: 6px 13px;
+            border: 1px solid var(--card-border-color);
+        }
+
+        .markdown-preview table tr {
+            background-color: transparent;
+            border-top: 1px solid var(--card-border-color);
+        }
+
+        .markdown-preview table tr:nth-child(2n) {
+            background-color: rgba(150, 150, 150, 0.05);
+        }
+
+        .markdown-preview img {
+            max-width: 100%;
+            box-sizing: content-box;
+        }
+
+        .markdown-preview ul,
+        .markdown-preview ol {
+            padding-left: 2em;
+        }
+
+        /* Adjust the note action buttons */
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .note-actions button {
+            margin: 0;
+            padding: 5px 10px;
+        }
     </style>
 </head>
+
 <body>
     <div id="navbar-placeholder"></div>
     <main class="container">
@@ -116,7 +287,7 @@
                     <button id="apply-filters">Apply Filters</button>
                 </div>
             </div>
-            
+
             <div id="notes-container" hx-get="/api/notes" hx-trigger="load" hx-swap="innerHTML">
                 <table class="notes-table">
                     <thead>
@@ -139,4 +310,5 @@
     </main>
     <script src="/static/notes.js"></script>
 </body>
+
 </html>
