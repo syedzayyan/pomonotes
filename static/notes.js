@@ -4,11 +4,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const dateFrom = document.getElementById('date-from');
     const dateTo = document.getElementById('date-to');
     const applyFiltersBtn = document.getElementById('apply-filters');
-    const editorModal = document.getElementById('editor-modal');
     
     let allNotes = [];
-    let currentNoteId = null;
-    let fullPageEditor = null;
+    let activeNoteId = null;
+    let activeEditor = null;
     
     // Initialize with current date range (last 30 days)
     function initializeDateRange() {
@@ -18,34 +17,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         dateTo.valueAsDate = today;
         dateFrom.valueAsDate = thirtyDaysAgo;
-    }
-    
-    // Initialize full page editor
-    function initializeFullPageEditor(noteContent, noteId) {
-        const editorTextarea = document.getElementById('fullpage-editor-textarea');
-        if (!editorTextarea) return;
-        
-        if (fullPageEditor) {
-            fullPageEditor.toTextArea();
-            fullPageEditor = null;
-        }
-        
-        editorTextarea.value = noteContent;
-        
-        fullPageEditor = new SimpleMDE({
-            element: editorTextarea,
-            spellChecker: false,
-            autofocus: true,
-            toolbar: [
-                'bold', 'italic', 'heading', '|',
-                'quote', 'unordered-list', 'ordered-list', '|',
-                'link', 'image', '|',
-                'preview', 'side-by-side', 'fullscreen', '|',
-                'guide'
-            ]
-        });
-        
-        currentNoteId = noteId;
     }
     
     // Load all notes with session info
@@ -115,13 +86,49 @@ document.addEventListener('DOMContentLoaded', () => {
             return noteMatches && dateMatches;
         });
         
-        displayNotes(filteredNotes);
+        displayNotesTable(filteredNotes);
     }
     
-    // Display notes in the container
-    function displayNotes(notes) {
+    // Get first few words from note text
+    function getPreviewText(text, wordCount = 5) {
+        if (!text) return 'No content';
+        
+        // Remove markdown formatting for better preview
+        const plainText = text
+            .replace(/[#*_~`]/g, '') // Remove common markdown characters
+            .replace(/\[[^\]]*\]\([^)]*\)/g, '') // Remove links
+            .trim();
+            
+        const words = plainText.split(/\s+/);
+        const preview = words.slice(0, wordCount).join(' ');
+        
+        return words.length > wordCount ? `${preview}...` : preview;
+    }
+    
+    // Display notes in table format
+    function displayNotesTable(notes) {
+        // Create table structure if it doesn't exist
+        if (!document.querySelector('.notes-table')) {
+            notesContainer.innerHTML = `
+                <table class="notes-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Session</th>
+                            <th>Preview</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notes-table-body"></tbody>
+                </table>
+            `;
+        }
+        
+        const tableBody = document.getElementById('notes-table-body');
+        
         if (!notes || notes.length === 0) {
-            notesContainer.innerHTML = '<p>No notes found matching your criteria.</p>';
+            tableBody.innerHTML = '<tr><td colspan="5">No notes found matching your criteria.</td></tr>';
             return;
         }
         
@@ -131,54 +138,61 @@ document.addEventListener('DOMContentLoaded', () => {
             return new Date(b.session.start_time) - new Date(a.session.start_time);
         });
         
-        notesContainer.innerHTML = '';
+        tableBody.innerHTML = '';
         
         notes.forEach(note => {
-            const noteCard = document.createElement('article');
-            noteCard.className = 'note-card';
-            
             // Format date if available
-            let dateHTML = '';
+            let dateDisplay = 'N/A';
             if (note.session && note.session.start_time) {
                 const noteDate = new Date(note.session.start_time);
-                dateHTML = `<div class="note-date">${noteDate.toLocaleDateString()}</div>`;
+                dateDisplay = noteDate.toLocaleDateString();
             }
             
-            // Session badge if available
-            let sessionHTML = '';
-            if (note.session) {
-                sessionHTML = `
-                    <div class="note-session">
-                        <span class="session-badge">
-                            Session #${note.session.id}
-                        </span>
-                        <span class="status-badge ${note.session.status}">
-                            ${note.session.status}
-                        </span>
+            // Session info
+            const sessionDisplay = note.session ? `#${note.session.id}` : 'N/A';
+            
+            // Preview text (first 5 words)
+            const previewText = getPreviewText(note.note);
+            
+            // Status badge
+            let statusDisplay = 'N/A';
+            if (note.session && note.session.status) {
+                statusDisplay = `<span class="status-badge ${note.session.status}">${note.session.status}</span>`;
+            }
+            
+            // Create note row
+            const noteRow = document.createElement('tr');
+            noteRow.className = 'note-row';
+            noteRow.dataset.noteId = note.id;
+            noteRow.innerHTML = `
+                <td>${dateDisplay}</td>
+                <td>${sessionDisplay}</td>
+                <td class="note-preview">${previewText}</td>
+                <td>${statusDisplay}</td>
+                <td>
+                    <div class="action-buttons">
+                        <button class="view-session-btn" data-session-id="${note.session_id}">View Session</button>
                     </div>
-                `;
-            }
-            
-            // Render markdown content
-            noteCard.innerHTML = `
-                <header>
-                    ${dateHTML}
-                    ${sessionHTML}
-                </header>
-                <div class="note-content" data-markdown="${escapeHTML(note.note)}">
-                    ${marked.parse(note.note)}
-                </div>
-                <footer>
-                    <button class="view-session-btn" data-session-id="${note.session_id}">
-                        View Session
-                    </button>
-                    <button class="edit-fullpage-btn" data-note-id="${note.id}">
-                        Edit Note
-                    </button>
-                </footer>
+                </td>
             `;
+            tableBody.appendChild(noteRow);
             
-            notesContainer.appendChild(noteCard);
+            // Create content row (initially hidden)
+            const contentRow = document.createElement('tr');
+            contentRow.className = 'note-content-row';
+            contentRow.id = `note-content-${note.id}`;
+            contentRow.innerHTML = `
+                <td colspan="5" class="note-content-cell">
+                    <div class="editor-container" id="editor-container-${note.id}">
+                        <textarea id="editor-${note.id}" data-markdown="${escapeHTML(note.note)}"></textarea>
+                    </div>
+                    <div class="editor-actions" style="margin-top: 15px;">
+                        <button class="save-note-btn" data-note-id="${note.id}">Save</button>
+                        <button class="cancel-edit-btn" data-note-id="${note.id}">Cancel</button>
+                    </div>
+                </td>
+            `;
+            tableBody.appendChild(contentRow);
         });
         
         // Add event listeners to buttons
@@ -189,79 +203,189 @@ document.addEventListener('DOMContentLoaded', () => {
     function setupNoteActionHandlers() {
         // View session buttons
         document.querySelectorAll('.view-session-btn').forEach(button => {
-            button.addEventListener('click', function() {
+            button.addEventListener('click', function(e) {
+                e.stopPropagation();
                 const sessionId = this.getAttribute('data-session-id');
                 window.location.href = `/history?session=${sessionId}`;
             });
         });
         
-        // Edit note buttons
-        document.querySelectorAll('.edit-fullpage-btn').forEach(button => {
+        // Make entire row clickable
+        document.querySelectorAll('.note-row').forEach(row => {
+            row.addEventListener('click', function() {
+                const noteId = this.getAttribute('data-note-id');
+                toggleNoteContent(noteId);
+            });
+        });
+        
+        // Save note buttons
+        document.querySelectorAll('.save-note-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const noteId = this.getAttribute('data-note-id');
-                const noteCard = this.closest('.note-card');
-                const noteContent = noteCard.querySelector('.note-content').dataset.markdown;
-                
-                openFullPageEditor(noteContent, noteId);
+                saveNote(noteId);
+            });
+        });
+        
+        // Cancel edit buttons
+        document.querySelectorAll('.cancel-edit-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const noteId = this.getAttribute('data-note-id');
+                hideNoteContent(noteId);
             });
         });
     }
     
-    // Open the full-page editor modal
-    function openFullPageEditor(content, noteId) {
-        if (!editorModal) {
-            console.error('Editor modal not found in the DOM');
+    // Toggle note content visibility
+    function toggleNoteContent(noteId) {
+        const contentRow = document.getElementById(`note-content-${noteId}`);
+        const noteRow = document.querySelector(`.note-row[data-note-id="${noteId}"]`);
+        
+        // If already active, hide it
+        if (contentRow.classList.contains('active')) {
+            hideNoteContent(noteId);
             return;
         }
         
-        // Initialize the editor with content
-        const titleElement = document.getElementById('editor-title');
-        if (titleElement) {
-            titleElement.textContent = `Editing Note #${noteId}`;
+        // If another note is active, hide it first
+        if (activeNoteId && activeNoteId !== noteId) {
+            hideNoteContent(activeNoteId);
         }
         
-        initializeFullPageEditor(content, noteId);
-        editorModal.showModal();
-    }
-    
-    // Close the full-page editor modal
-    function closeFullPageEditor() {
-        if (fullPageEditor) {
-            fullPageEditor.toTextArea();
-            fullPageEditor = null;
-        }
-        if (editorModal) {
-            editorModal.close();
-        }
-    }
-    
-    // Save the note from full-page editor
-    function saveFullPageNote() {
-        if (!fullPageEditor || !currentNoteId) return;
+        // Show this note
+        contentRow.classList.add('active');
+        noteRow.classList.add('note-row-active');
+        activeNoteId = noteId;
         
-        const updatedContent = fullPageEditor.value();
-        updateNote(currentNoteId, updatedContent);
+        // Initialize the editor if not already done
+        initializeEditor(noteId);
     }
     
-    // Update a note
-    function updateNote(noteId, noteText) {
+    // Hide note content
+    function hideNoteContent(noteId) {
+        const contentRow = document.getElementById(`note-content-${noteId}`);
+        const noteRow = document.querySelector(`.note-row[data-note-id="${noteId}"]`);
+        
+        contentRow.classList.remove('active');
+        noteRow.classList.remove('note-row-active');
+        
+        // Destroy editor to free resources
+        if (activeEditor) {
+            activeEditor.toTextArea();
+            activeEditor = null;
+        }
+        
+        activeNoteId = null;
+    }
+    
+    // Initialize the SimpleMDE editor for a note
+    function initializeEditor(noteId) {
+        const editorTextarea = document.getElementById(`editor-${noteId}`);
+        if (!editorTextarea) return;
+        
+        // Cleanup any existing editor
+        if (activeEditor) {
+            activeEditor.toTextArea();
+            activeEditor = null;
+        }
+        
+        // Get the original markdown content
+        const markdown = editorTextarea.dataset.markdown || '';
+        editorTextarea.value = markdown;
+        
+        // Initialize SimpleMDE
+        activeEditor = new SimpleMDE({
+            element: editorTextarea,
+            spellChecker: false,
+            autofocus: true,
+            toolbar: [
+                'bold', 'italic', 'heading', '|',
+                'quote', 'unordered-list', 'ordered-list', '|',
+                'link', 'image', '|',
+                'preview', 'side-by-side', 'fullscreen', '|',
+                'guide'
+            ]
+        });
+    }
+    
+    // Save a note
+    function saveNote(noteId) {
+        if (!activeEditor) return;
+        
+        const updatedContent = activeEditor.value();
+        
         fetch(`/api/notes/${noteId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ note: noteText })
+            body: JSON.stringify({ note: updatedContent })
         })
         .then(response => response.json())
         .then(data => {
             console.log('Note updated:', data);
-            closeFullPageEditor();
             
-            // Reload notes to show updated content
-            loadAllNotes();
+            // Update the stored content in the DOM
+            const textarea = document.getElementById(`editor-${noteId}`);
+            if (textarea) {
+                textarea.dataset.markdown = escapeHTML(updatedContent);
+            }
+            
+            // Update the preview text
+            const noteRow = document.querySelector(`.note-row[data-note-id="${noteId}"]`);
+            const previewCell = noteRow.querySelector('.note-preview');
+            if (previewCell) {
+                previewCell.textContent = getPreviewText(updatedContent);
+            }
+            
+            // Update the note in our local cache
+            const noteIndex = allNotes.findIndex(note => note.id === parseInt(noteId));
+            if (noteIndex !== -1) {
+                allNotes[noteIndex].note = updatedContent;
+            }
+            
+            // Hide the editor
+            hideNoteContent(noteId);
+            
+            // Show success message
+            showNotification('Note saved successfully!');
         })
         .catch(error => {
             console.error('Error updating note:', error);
-            alert('Failed to update note. Please try again.');
+            showNotification('Failed to update note. Please try again.', 'error');
         });
+    }
+    
+    // Show notification message
+    function showNotification(message, type = 'success') {
+        // Create notification element if it doesn't exist
+        let notification = document.getElementById('notification');
+        if (!notification) {
+            notification = document.createElement('div');
+            notification.id = 'notification';
+            notification.style.position = 'fixed';
+            notification.style.bottom = '20px';
+            notification.style.right = '20px';
+            notification.style.padding = '10px 20px';
+            notification.style.borderRadius = '4px';
+            notification.style.color = '#fff';
+            notification.style.zIndex = '9999';
+            notification.style.transition = 'opacity 0.3s';
+            document.body.appendChild(notification);
+        }
+        
+        // Set styles based on notification type
+        if (type === 'success') {
+            notification.style.backgroundColor = '#4caf50';
+        } else if (type === 'error') {
+            notification.style.backgroundColor = '#f44336';
+        }
+        
+        // Set message and show notification
+        notification.textContent = message;
+        notification.style.opacity = '1';
+        
+        // Hide notification after 3 seconds
+        setTimeout(() => {
+            notification.style.opacity = '0';
+        }, 3000);
     }
     
     // Helper function to escape HTML
@@ -296,17 +420,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (applyFiltersBtn) {
         applyFiltersBtn.addEventListener('click', applyFilters);
     }
-    
-    // Full-page editor event listeners
-    document.addEventListener('click', event => {
-        if (event.target.id === 'editor-save-btn') {
-            saveFullPageNote();
-        }
-        
-        if (event.target.id === 'editor-cancel-btn' || event.target.id === 'editor-close') {
-            closeFullPageEditor();
-        }
-    });
     
     // Initialize
     initializeDateRange();

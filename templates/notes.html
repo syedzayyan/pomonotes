@@ -11,9 +11,92 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js"></script>
     <link rel="manifest" href="/static/manifest.json">
-    <!-- Add auth.js script -->
     <script src="/static/auth.js"></script>
     <script src="/static/navbar.js"></script>
+    <style>
+        .notes-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .notes-table th, .notes-table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid var(--card-border-color);
+        }
+        .notes-table tbody tr.note-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .notes-table tbody tr.note-row:hover {
+            background-color: var(--card-hover-color, rgba(255, 255, 255, 0.05));
+        }
+        .note-preview {
+            font-style: italic;
+            color: var(--muted-color, #999);
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .note-row-active {
+            background-color: var(--card-active-color, rgba(255, 255, 255, 0.1)) !important;
+        }
+        .note-content-row {
+            display: none;
+        }
+        .note-content-row.active {
+            display: table-row;
+        }
+        .note-content-cell {
+            padding: 20px !important;
+            background-color: var(--card-background, rgba(0, 0, 0, 0.2));
+        }
+        .editor-container {
+            min-height: 300px;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .status-badge.completed {
+            background-color: #4caf50;
+            color: white;
+        }
+        .status-badge.in-progress {
+            background-color: #2196f3;
+            color: white;
+        }
+        .status-badge.paused {
+            background-color: #ff9800;
+            color: white;
+        }
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+        .action-buttons button {
+            margin: 0;
+            padding: 5px 10px;
+        }
+        .filters {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        .date-filter {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        #search-notes {
+            margin-bottom: 0;
+        }
+    </style>
 </head>
 <body>
     <div id="navbar-placeholder"></div>
@@ -23,7 +106,6 @@
                 <h1>All Notes</h1>
                 <p>Browse all your session notes</p>
             </header>
-
             <div class="filters">
                 <input type="text" id="search-notes" placeholder="Search notes..." aria-label="Search notes">
                 <div class="date-filter">
@@ -36,28 +118,25 @@
             </div>
             
             <div id="notes-container" hx-get="/api/notes" hx-trigger="load" hx-swap="innerHTML">
-                <p>Loading notes...</p>
+                <table class="notes-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Session</th>
+                            <th>Preview</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="notes-table-body">
+                        <tr>
+                            <td colspan="4">Loading notes...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </article>
     </main>
-
-    <!-- Full-page Editor Modal -->
-    <dialog id="editor-modal" class="editor-modal">
-        <article>
-            <header class="editor-header">
-                <h3 id="editor-title">Edit Note</h3>
-                <a href="#close" aria-label="Close" class="close" id="editor-close"></a>
-            </header>
-            <div class="editor-container fullpage-editor">
-                <textarea id="fullpage-editor-textarea"></textarea>
-            </div>
-            <div class="editor-actions">
-                <button id="editor-cancel-btn" class="secondary">Cancel</button>
-                <button id="editor-save-btn" class="primary">Save Note</button>
-            </div>
-        </article>
-    </dialog>
-
     <script src="/static/notes.js"></script>
 </body>
 </html>
