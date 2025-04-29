@@ -9,7 +9,6 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css">
     <link rel="stylesheet" href="/static/style.css">
-    <!-- Keep the htmx import -->
     <script src="https://unpkg.com/htmx.org@1.9.6"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -45,8 +44,7 @@
                         <div class="pomodoro-counter">
                             <span id="current-pomodoro">1</span>/4 Pomodoros
                         </div>
-                        
-                        <!-- Use htmx for tag loading -->
+                        <!-- Add the skip button to your timer controls in index.html -->
                         <div class="timer-controls">
                             <button class="start-btn">Start</button>
                             <button class="stop-btn">Stop</button>
@@ -65,11 +63,7 @@
                             <h4>Session Tags</h4>
                             <div class="tag-container" id="tag-container"></div>
                             <div class="tag-selector">
-                                <!-- Use htmx to load tags dynamically -->
-                                <select id="tag-select" 
-                                        hx-get="/api/tags" 
-                                        hx-trigger="load, tagAdded from:body"
-                                        hx-target="#tag-select">
+                                <select id="tag-select">
                                     <option value="">Add tag...</option>
                                 </select>
                             </div>
@@ -87,17 +81,10 @@
                         <textarea id="markdown-editor"
                             placeholder="Write your session notes in markdown here..."></textarea>
                     </div>
-                    <!-- Use htmx for saving notes -->
-                    <button class="save-btn" 
-                            hx-post="/api/notes"
-                            hx-include="#markdown-editor"
-                            hx-trigger="click"
-                            hx-swap="none">
-                        Save Note
-                    </button>
+                    <button class="save-btn">Save Note</button>
                 </article>
             </div>
-        </div>
+
     </main>
 
     <!-- Audio for notifications -->
@@ -151,6 +138,7 @@
                 notificationSound.load();
             }
             
+
             // Initialize sound toggle from localStorage
             const soundEnabled = document.getElementById("sound-enabled");
             if (soundEnabled) {
@@ -160,56 +148,6 @@
                 // Save sound preference when changed
                 soundEnabled.addEventListener("change", function () {
                     localStorage.setItem("sound-enabled", this.checked);
-                });
-            }
-
-            // Setup event listeners for successful htmx requests
-            document.body.addEventListener('htmx:afterRequest', function(event) {
-                // If a tag was successfully added
-                if (event.detail.target && event.detail.target.id === 'add-tag-btn' && event.detail.successful) {
-                    // Clear the input field
-                    document.getElementById('tag-input').value = '';
-                    // Trigger tag refresh
-                    document.body.dispatchEvent(new Event('tagAdded'));
-                }
-                
-                // If a note was successfully saved
-                if (event.detail.target && event.detail.target.classList.contains('save-btn') && event.detail.successful) {
-                    // Clear the editor (handle both SimpleMDE and regular textarea)
-                    const editor = document.getElementById('markdown-editor');
-                    if (window.simpleMDE) {
-                        window.simpleMDE.value('');
-                    } else if (editor) {
-                        editor.value = '';
-                    }
-                    alert('Note saved successfully!');
-                }
-            });
-        });
-
-        // Handle tag selection with htmx
-        document.addEventListener('htmx:afterOnLoad', function(event) {
-            if (event.detail.target && event.detail.target.id === 'tag-select') {
-                // Transform the API response into proper <option> elements
-                const tags = JSON.parse(event.detail.xhr.responseText);
-                
-                // Clear current options
-                const select = document.getElementById('tag-select');
-                select.innerHTML = '';
-                
-                // Add default option
-                const defaultOption = document.createElement('option');
-                defaultOption.value = '';
-                defaultOption.text = 'Add tag...';
-                select.appendChild(defaultOption);
-                
-                // Add tag options
-                tags.forEach(tag => {
-                    const option = document.createElement('option');
-                    option.value = tag.name;
-                    option.text = tag.name;
-                    option.setAttribute('data-color', tag.color);
-                    select.appendChild(option);
                 });
             }
         });

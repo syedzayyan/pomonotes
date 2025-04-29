@@ -1,196 +1,427 @@
-const CACHE_NAME = 'pomonotes-v2';
-const ASSETS = [
+// Service worker for Pomonotes
+// Cache names
+const STATIC_CACHE = 'pomonotes-static-v1';
+const DYNAMIC_CACHE = 'pomonotes-dynamic-v1';
+const API_CACHE = 'pomonotes-api-v1';
+
+// Resources to cache immediately on install
+const STATIC_ASSETS = [
   '/',
-  '/history',
-  '/notes',
+  '/index.html',
   '/static/style.css',
   '/static/script.js',
-  '/static/history.js',
-  '/static/notes.js',
+  '/static/auth.js',
+  '/static/navbar.js',
   '/static/icon-192x192.png',
   '/static/icon-512x512.png',
+  '/static/favicon.ico',
   '/static/notification.mp3',
+  '/static/manifest.json',
   'https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css',
+  'https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.css',
   'https://unpkg.com/htmx.org@1.9.6',
   'https://cdn.jsdelivr.net/npm/chart.js',
-  'https://cdn.jsdelivr.net/npm/marked/marked.min.js'
+  'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+  'https://cdn.jsdelivr.net/simplemde/latest/simplemde.min.js'
 ];
 
-// Install event - cache assets
+// Install event - cache static assets
 self.addEventListener('install', event => {
+  console.log('[Service Worker] Installing...');
+  
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(STATIC_CACHE)
       .then(cache => {
-        return cache.addAll(ASSETS);
+        console.log('[Service Worker] Caching static assets');
+        return cache.addAll(STATIC_ASSETS);
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('[Service Worker] Static assets cached');
+        return self.skipWaiting();
+      })
   );
 });
 
 // Activate event - clean up old caches
 self.addEventListener('activate', event => {
+  console.log('[Service Worker] Activating...');
+  
+  const currentCaches = [STATIC_CACHE, DYNAMIC_CACHE, API_CACHE];
+  
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.filter(cacheName => {
-          return cacheName !== CACHE_NAME;
-        }).map(cacheName => {
-          return caches.delete(cacheName);
-        })
-      );
-    }).then(() => self.clients.claim())
+    caches.keys()
+      .then(cacheNames => {
+        return cacheNames.filter(cacheName => !currentCaches.includes(cacheName));
+      })
+      .then(cachesToDelete => {
+        return Promise.all(cachesToDelete.map(cacheToDelete => {
+          console.log('[Service Worker] Deleting old cache:', cacheToDelete);
+          return caches.delete(cacheToDelete);
+        }));
+      })
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch event - serve from cache or network
+// Function to determine if a request is an API request
+function isApiRequest(url) {
+  const apiPaths = ['/api/sessions', '/api/pomodoros', '/api/breaks', '/api/notes', '/api/tags'];
+  return apiPaths.some(path => url.pathname.startsWith(path));
+}
+
+// Function to check if request is GET
+function isGetRequest(request) {
+  return request.method === 'GET';
+}
+
+// Function to handle API requests with offline support
+async function handleApiRequest(request) {
+  // For GET requests, try network first, then cache
+  if (isGetRequest(request)) {
+    try {
+      // Try to get from network
+      const response = await fetch(request);
+      
+      // Store in cache if successful
+      const cache = await caches.open(API_CACHE);
+      cache.put(request, response.clone());
+      
+      return response;
+    } catch (error) {
+      console.log('[Service Worker] Network error, trying cache', error);
+      
+      // If network fails, try from cache
+      const cachedResponse = await caches.match(request);
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      
+      // If not in cache either, return offline response for API
+      return new Response(
+        JSON.stringify({ 
+          error: 'You are offline',
+          offline: true,
+          timestamp: new Date().toISOString()
+        }),
+        { 
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+  } else {
+    // For non-GET requests (POST, PUT, etc.), try online first
+    try {
+      const response = await fetch(request);
+      return response;
+    } catch (error) {
+      console.log('[Service Worker] Network error for non-GET request', error);
+      
+      // Queue the request for later if it's a POST or PUT
+      if (request.method === 'POST' || request.method === 'PUT') {
+        await queueRequest(request.clone());
+        
+        // Return a "success" response to prevent app errors
+        return new Response(
+          JSON.stringify({ 
+            id: 'offline-' + new Date().getTime(),
+            offline: true,
+            queued: true,
+            message: 'Request queued for when you\'re back online'
+          }),
+          { 
+            status: 202, // Accepted
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+      }
+      
+      // For other methods, return error
+      return new Response(
+        JSON.stringify({ 
+          error: 'Cannot perform this action while offline',
+          offline: true
+        }),
+        { 
+          status: 503,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+  }
+}
+
+// Queue a request for later execution when back online
+async function queueRequest(request) {
+  try {
+    // Clone the request to a serializable format
+    const serializedRequest = {
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers.entries()),
+      body: await request.text(),
+      timestamp: new Date().getTime()
+    };
+    
+    // Get current queue from IndexedDB
+    const db = await openRequestQueue();
+    const tx = db.transaction('requests', 'readwrite');
+    const store = tx.objectStore('requests');
+    
+    // Add to queue
+    await store.add(serializedRequest);
+    console.log('[Service Worker] Request queued for later', serializedRequest);
+    
+    // Commit transaction
+    await tx.complete;
+    db.close();
+    
+    // Notify any open clients about the queued request
+    const clients = await self.clients.matchAll({
+      type: 'window'
+    });
+    
+    clients.forEach(client => {
+      client.postMessage({ 
+        type: 'REQUEST_QUEUED',
+        payload: {
+          method: serializedRequest.method,
+          url: serializedRequest.url,
+          timestamp: serializedRequest.timestamp
+        }
+      });
+    });
+    
+  } catch (error) {
+    console.error('[Service Worker] Failed to queue request', error);
+  }
+}
+
+// Open the IndexedDB database for request queue
+function openRequestQueue() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open('PomonotesOfflineQueue', 1);
+    
+    request.onupgradeneeded = event => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains('requests')) {
+        db.createObjectStore('requests', { keyPath: 'timestamp' });
+      }
+    };
+    
+    request.onsuccess = event => {
+      resolve(event.target.result);
+    };
+    
+    request.onerror = event => {
+      console.error('[Service Worker] IndexedDB error:', event.target.error);
+      reject(event.target.error);
+    };
+  });
+}
+
+// Function to process queued requests
+async function processQueue() {
+  try {
+    const db = await openRequestQueue();
+    const tx = db.transaction('requests', 'readwrite');
+    const store = tx.objectStore('requests');
+    const requests = await store.getAll();
+    
+    if (requests.length === 0) {
+      console.log('[Service Worker] No requests in queue');
+      db.close();
+      return;
+    }
+    
+    console.log('[Service Worker] Processing', requests.length, 'queued requests');
+    
+    // Process each request
+    for (const requestData of requests) {
+      try {
+        const request = new Request(requestData.url, {
+          method: requestData.method,
+          headers: new Headers(requestData.headers),
+          body: requestData.method !== 'GET' ? requestData.body : undefined
+        });
+        
+        // Send the request
+        await fetch(request);
+        console.log('[Service Worker] Successfully processed queued request:', requestData.url);
+        
+        // Remove from queue
+        await store.delete(requestData.timestamp);
+        
+      } catch (error) {
+        console.error('[Service Worker] Failed to process queued request:', error);
+        // Leave in queue to try again later
+      }
+    }
+    
+    await tx.complete;
+    db.close();
+    
+    // Notify clients that the queue was processed
+    const clients = await self.clients.matchAll({
+      type: 'window'
+    });
+    
+    clients.forEach(client => {
+      client.postMessage({ 
+        type: 'QUEUE_PROCESSED' 
+      });
+    });
+    
+  } catch (error) {
+    console.error('[Service Worker] Failed to process queue:', error);
+  }
+}
+
+// Listen for online events
+self.addEventListener('online', () => {
+  console.log('[Service Worker] Back online, processing request queue');
+  processQueue();
+});
+
+// Fetch event - handle requests
 self.addEventListener('fetch', event => {
-  // Skip cross-origin requests
-  if (!event.request.url.startsWith(self.location.origin)) {
+  const url = new URL(event.request.url);
+  
+  // Handle API requests
+  if (isApiRequest(url)) {
+    event.respondWith(handleApiRequest(event.request));
     return;
   }
   
-  // Skip API requests (don't cache these)
-  if (event.request.url.includes('/api/')) {
-    return;
-  }
-
+  // For non-API requests, use stale-while-revalidate strategy
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        
-        return fetch(event.request)
-          .then(response => {
-            // Don't cache non-successful responses
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
+        // Return cached response if available
+        const fetchPromise = fetch(event.request)
+          .then(networkResponse => {
+            // Update cache with fresh version
+            if (networkResponse && networkResponse.status === 200) {
+              const cache = caches.open(DYNAMIC_CACHE)
+                .then(cache => {
+                  cache.put(event.request, networkResponse.clone());
+                  return networkResponse;
+                });
+              return cache;
             }
-            
-            // Clone the response - one to return, one to cache
-            const responseToCache = response.clone();
-            
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
-              
-            return response;
+            return networkResponse;
+          })
+          .catch(error => {
+            console.log('[Service Worker] Fetch failed:', error);
+            // Return cached version if network fails
+            return cachedResponse;
           });
+          
+        return cachedResponse || fetchPromise;
       })
   );
 });
 
-// Handle push notifications
+// Handle notification clicks
+self.addEventListener('notificationclick', event => {
+  console.log('[Service Worker] Notification clicked:', event.notification.tag);
+  
+  event.notification.close();
+  
+  // Handle actions
+  if (event.action === 'pause') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(client => client.postMessage({ action: 'pauseTimer' }));
+      })
+    );
+  } else if (event.action === 'resume') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        clients.forEach(client => client.postMessage({ action: 'resumeTimer' }));
+      })
+    );
+  } else {
+    // Focus or open a window on notification click
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(clients => {
+        if (clients.length > 0) {
+          clients[0].focus();
+        } else {
+          self.clients.openWindow('/');
+        }
+      })
+    );
+  }
+});
+
+// Listen for push notifications
 self.addEventListener('push', event => {
-  const data = event.data.text() ? JSON.parse(event.data.text()) : {};
-  const title = data.title || 'Pomonotes';
+  if (!event.data) return;
+  
+  const data = event.data.json();
+  
   const options = {
-    body: data.body || 'Your timer has completed!',
+    body: data.body || 'New notification',
     icon: '/static/icon-192x192.png',
     badge: '/static/icon-192x192.png',
-    tag: 'pomodoro-notification',
-    renotify: true,
-    actions: [
-      {
-        action: 'open',
-        title: 'Open App'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss'
-      }
-    ],
-    data: {
-      url: '/'
-    }
+    data: data.data || {}
   };
   
-  // Try to increment the badge counter
-  if ('setAppBadge' in navigator) {
-    self.registration.getNotifications().then(notifications => {
-      const count = notifications.length + 1;
-      navigator.setAppBadge(count).catch(err => console.error('Badge error:', err));
-    });
-  }
-  
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.registration.showNotification(data.title || 'Pomonotes', options)
   );
 });
 
-// Handle notification clicks
-// Add this to your service-worker.js file
+// Listen for sync events (background sync)
+self.addEventListener('sync', event => {
+  console.log('[Service Worker] Sync event:', event.tag);
+  
+  if (event.tag === 'sync-queue') {
+    event.waitUntil(processQueue());
+  }
+});
 
-// Handle notification clicks with enhanced interaction for timer notifications
-self.addEventListener('notificationclick', event => {
-  const notification = event.notification;
-  notification.close();
+// Listen for message events from clients
+self.addEventListener('message', event => {
+  console.log('[Service Worker] Message received:', event.data);
   
-  // Handle timer controls via notification actions
-  if (notification.tag === 'timer-notification') {
-    if (event.action === 'pause') {
-      // Tell the page to pause the timer
-      self.clients.matchAll({type: 'window'}).then(clients => {
-        if (clients && clients.length) {
-          clients[0].postMessage({
-            action: 'pauseTimer'
-          });
-        }
-      });
-    } else if (event.action === 'resume') {
-      // Tell the page to resume the timer
-      self.clients.matchAll({type: 'window'}).then(clients => {
-        if (clients && clients.length) {
-          clients[0].postMessage({
-            action: 'resumeTimer'
-          });
-        }
-      });
-    } else {
-      // Default action is to focus/open the app
-      event.waitUntil(
-        clients.matchAll({type: 'window'}).then(clientList => {
-          for (const client of clientList) {
-            if (client.url === '/' && 'focus' in client) {
-              return client.focus();
-            }
-          }
-          
-          if (clients.openWindow) {
-            return clients.openWindow('/');
-          }
-        })
-      );
-    }
-    return;
+  if (event.data.action === 'checkQueue') {
+    event.waitUntil(
+      checkQueueSize().then(size => {
+        event.source.postMessage({
+          type: 'QUEUE_SIZE',
+          size: size
+        });
+      })
+    );
+  } else if (event.data.action === 'processQueue') {
+    event.waitUntil(processQueue());
   }
-  
-  // Handle regular notification clicks (existing code)
-  if (event.action === 'dismiss') {
-    return;
-  }
-  
-  // Default action is to open the app
-  event.waitUntil(
-    clients.matchAll({type: 'window'}).then(clientList => {
-      // If a tab is already open, focus it
-      for (const client of clientList) {
-        if (client.url === '/' && 'focus' in client) {
-          return client.focus();
-        }
-      }
+});
+
+// Helper function to check queue size
+async function checkQueueSize() {
+  try {
+    const db = await openRequestQueue();
+    const tx = db.transaction('requests', 'readonly');
+    const store = tx.objectStore('requests');
+    const countRequest = store.count();
+    
+    return new Promise((resolve, reject) => {
+      countRequest.onsuccess = () => {
+        const count = countRequest.result;
+        tx.complete;
+        db.close();
+        resolve(count);
+      };
       
-      // Otherwise open a new tab
-      if (clients.openWindow) {
-        return clients.openWindow('/');
-      }
-    })
-  );
-});
-
-// Handle notification close events
-self.addEventListener('notificationclose', event => {
-  console.log('Notification was closed', event);
-});
+      countRequest.onerror = event => {
+        reject(event.target.error);
+      };
+    });
+  } catch (error) {
+    console.error('[Service Worker] Failed to check queue size:', error);
+    return 0;
+  }
+}
