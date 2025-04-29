@@ -2,38 +2,14 @@
 
 A simple Pomodoro timer with built-in Markdown note-taking. Made for forgetful folks (like me) who want to track when they worked on what—kind of like *Memento*, but with fewer tattoos.
 
----
 
 ## Features 🚀
 
-### 🍅 Pomodoro Timer  
-- 4x 25-minute pomodoros per session  
-- 5-minute short breaks after pomodoros 1–3  
-- 15-minute long break after pomodoro 4  
-- Pause, stop, and reset (with confirmation)  
-- Clean radial timer display  
-
-### 📝 Markdown Notes  
-- Take notes during pomodoro sessions  
-- Full Markdown support with live preview  
-- Quick formatting toolbar  
-- Notes linked to each pomodoro  
-
-### 📅 Session Management  
-- View full session history  
-- Breakdown of pomodoros and breaks  
-- Add/edit notes for past sessions  
-- Track focus and productivity over time  
-
-### 📊 Analytics  
-- 7-day productivity chart  
-- Total focused time  
-- Completed pomodoros counter  
-
-### 📱 Progressive Web App  
-- Installable on your device  
-- Works offline  
-- Timer completion notifications  
+- 🍅 Pomodoro Timer  
+- 📝 Markdown Notes  
+- 📅 Session Management  
+- 📊 Analytics  
+- 📱 Progressive Web App  
 
 ---
 
@@ -48,18 +24,10 @@ A simple Pomodoro timer with built-in Markdown note-taking. Made for forgetful f
 
 ---
 
-## 🗂️ Database Schema  
-- **Sessions:** Tracks entire work sessions  
-- **Pomodoros:** Individual 25-minute focus periods  
-- **Breaks:** Short and long breaks  
-- **Notes:** Markdown notes linked to sessions/pomodoros  
-
----
-
 ## 🛠️ Local Development
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/syedzayyan/pomonotes
 cd pomonotes
 go get
 ADMIN_PASSWORD=your_pass JWT_SECRET=your_secure_jwt_secret go run *.go
@@ -72,7 +40,7 @@ ADMIN_PASSWORD=your_pass JWT_SECRET=your_secure_jwt_secret go run *.go
 Once the image is pushed to Docker Hub (or once you build it yourself), you can easily run Pomonotes.
 
 ```bash
-docker pull yourdockerhubusername/pomonotes
+docker pull zayyanmasud/pomonotes
 ```
 🛡️ Default Credentials:
 
@@ -89,5 +57,5 @@ To run with secure credentials:
 docker run -p 8080:8080 \
   -e ADMIN_PASSWORD=mysecurepassword \
   -e JWT_SECRET=mylongsecurejwtsecret \
-  yourdockerhubusername/pomonotes
+  zayyanmasud/pomonotes
 ```

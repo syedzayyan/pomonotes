@@ -614,6 +614,57 @@
                 });
             }
 
+            // Distribute session minutes across hours it spans
+            function distributeSessionMinutes(session) {
+                const startTime = new Date(session.start_time);
+                const endTime = session.end_time ? new Date(session.end_time) : new Date();
+                const totalSeconds = session.total_time; // Total time in seconds
+                
+                // Initialize return object
+                const hourlyDistribution = {};
+                
+                // Skip sessions with zero or invalid duration
+                if (totalSeconds <= 0) return hourlyDistribution;
+                
+                // Clone start time to avoid modifying original
+                let currentHourStart = new Date(startTime);
+                // Set to the beginning of the hour
+                currentHourStart.setMinutes(0, 0, 0);
+                
+                // Set up the end of the first hour
+                let currentHourEnd = new Date(currentHourStart);
+                currentHourEnd.setHours(currentHourStart.getHours() + 1);
+                
+                // Continue until we reach the end time
+                while (currentHourStart < endTime) {
+                    // Get the actual start of the interval (max of session start and hour start)
+                    const intervalStart = startTime > currentHourStart ? startTime : currentHourStart;
+                    
+                    // Get the actual end of the interval (min of session end and hour end)
+                    const intervalEnd = endTime < currentHourEnd ? endTime : currentHourEnd;
+                    
+                    // If there's actual time in this hour
+                    if (intervalStart < intervalEnd) {
+                        // Calculate minutes in this hour
+                        const intervalSeconds = (intervalEnd - intervalStart) / 1000;
+                        const intervalMinutes = intervalSeconds / 60;
+                        
+                        // Add to the hourly distribution
+                        const dateKey = currentHourStart.toISOString().split('T')[0];
+                        const hourKey = currentHourStart.getHours();
+                        const dayHourKey = `${dateKey}-${hourKey}`;
+                        
+                        hourlyDistribution[dayHourKey] = intervalMinutes;
+                    }
+                    
+                    // Move to the next hour
+                    currentHourStart.setHours(currentHourStart.getHours() + 1);
+                    currentHourEnd.setHours(currentHourEnd.getHours() + 1);
+                }
+                
+                return hourlyDistribution;
+            }
+
             // Initialize hour heatmap
             function initHourHeatmap() {
                 const hourLabels = document.getElementById('hourLabels');
@@ -651,22 +702,15 @@
                         // Create a map of day/hour combinations to minutes
                         const hourlyActivityMap = {};
                         
-                        // Process all sessions
+                        // Process all sessions with proper hour distribution
                         sessions.forEach(session => {
-                            const startTime = new Date(session.start_time);
-                            const endTime = session.end_time ? new Date(session.end_time) : new Date();
-                            const totalMinutes = session.total_time / 60;
+                            // Distribute the session time across the hours it spans
+                            const hourlyDistribution = distributeSessionMinutes(session);
                             
-                            // Skip sessions with zero or invalid duration
-                            if (totalMinutes <= 0) return;
-                            
-                            // Simple approach: assign all minutes to the start hour
-                            const dateKey = startTime.toISOString().split('T')[0];
-                            const hourKey = startTime.getHours();
-                            const dayHourKey = `${dateKey}-${hourKey}`;
-                            
-                            // Add to existing count or initialize
-                            hourlyActivityMap[dayHourKey] = (hourlyActivityMap[dayHourKey] || 0) + totalMinutes;
+                            // Add the distributed minutes to the hourly activity map
+                            Object.entries(hourlyDistribution).forEach(([dayHourKey, minutes]) => {
+                                hourlyActivityMap[dayHourKey] = (hourlyActivityMap[dayHourKey] || 0) + minutes;
+                            });
                         });
                         
                         // Build the heatmap
