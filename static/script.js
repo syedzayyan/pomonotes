@@ -9,7 +9,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Timer settings
   const pomodoroLength = 25 * 60; // 25 minutes in seconds
   const shortBreakLength = 5 * 60; // 5 minutes in seconds
-  const longBreakLength = 15 * 60; // 15 minutes in seconds
+  const longBreakLength = 60 * 60; // 15 minutes in seconds
+
   let timeRemaining = pomodoroLength;
   let timerInterval;
   let isTimerRunning = false;
@@ -612,6 +613,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } else {
           // In overtime, just increment the overtime counter
           overtimeSeconds += elapsedSeconds;
+          updateSkipButtonText();
         }
 
         // Format display time differently when in overtime
@@ -695,6 +697,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } else {
       updatePomodoroStatus("paused");
     }
+    updateSkipButtonText();
   }
 
   function skipTimer() {
@@ -716,24 +719,26 @@ document.addEventListener("DOMContentLoaded", () => {
     cancelBtn.onclick = function () {
       confirmModal.close();
     };
-
+    updateSkipButtonText();
     confirmModal.showModal();
   }
 
   // Modified executeSkipTimer to handle end of 4 pomodoros
   function executeSkipTimer() {
     clearTimeout(timerInterval);
-
-    // Update current timer in database
+  
+    // Update current timer in database with proper status
     if (isBreak) {
       updateBreakStatus("skipped");
     } else {
-      updatePomodoroStatus("skipped");
+      // If pomodoro time is up, mark as completed instead of skipped
+      const status = timeRemaining <= 0 ? "completed" : "skipped";
+      updatePomodoroStatus(status);
     }
-
+  
     // Check if we've completed 4 pomodoros
     const completingFourthPomodoro = !isBreak && currentPomodoro === 4;
-
+  
     // Transition to next phase
     if (isBreak) {
       // If in break, move to next pomodoro
@@ -751,17 +756,20 @@ document.addEventListener("DOMContentLoaded", () => {
       timeRemaining = currentPomodoro % 4 === 0 ? longBreakLength : shortBreakLength;
       radialTimer.style.stroke = "#3498db"; // Blue for break
       createNewBreak();
-
+  
       // If we've completed the 4th pomodoro, mark session as completed
       if (completingFourthPomodoro) {
         updateSessionStatus("completed", 4 * pomodoroLength, 4);
       }
     }
-
+  
     // Update timer display
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, timeRemaining);
-
+    
+    // Update skip button text for the new phase
+    updateSkipButtonText();
+  
     // If timer was running, restart it
     if (isTimerRunning) {
       isTimerRunning = false; // Reset so startTimer doesn't return early
@@ -771,10 +779,10 @@ document.addEventListener("DOMContentLoaded", () => {
       startBtn.textContent = "Start";
       startBtn.classList.remove("paused");
     }
-
+  
     // Clear any notifications and update UI
     clearTimerNotification();
-
+  
     // If we're transitioning to a break, show notification
     if (isBreak && Notification.permission === "granted") {
       const breakType = currentPomodoro % 4 === 0 ? "long" : "short";
@@ -861,7 +869,7 @@ document.addEventListener("DOMContentLoaded", () => {
     timerDisplay.textContent = formatTime(timeRemaining);
     updateRadialTimer(timeRemaining, pomodoroLength);
     radialTimer.style.stroke = "#e74c3c"; // Red for pomodoro
-
+    updateSkipButtonText();
     // Update the session with stopped status and current tags
     return fetch(`/api/sessions/${currentSessionId}`, {
       method: "PUT",
@@ -935,7 +943,7 @@ document.addEventListener("DOMContentLoaded", () => {
       currentSessionId = null;
       localStorage.removeItem("currentSessionId");
     }
-
+    updateSkipButtonText();
     // Clear notification counter when resetting
     clearNotificationCounter();
   }
@@ -1157,7 +1165,18 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   }
-
+  function updateSkipButtonText() {
+    const skipBtn = document.querySelector(".skip-btn");
+    if (!skipBtn) return;
+    
+    if (isBreak) {
+      skipBtn.textContent = "Skip Break";
+    } else if (timeRemaining <= 0) {
+      skipBtn.textContent = "Complete Pomodoro";
+    } else {
+      skipBtn.textContent = "Skip Pomodoro";
+    }
+  }
   // Request notification permission
   function requestNotificationPermission() {
     if ("Notification" in window) {
